@@ -48,6 +48,11 @@ linters:
         features-are-leaves:
           files:
             - "**/internal/features/**"
+            # A feature's own external test package imports the package it tests, which is not
+            # a cross-feature dependency. Every other rule here already excludes tests for the
+            # same reason: a rule that fires on the thing it is meant to permit gets loosened,
+            # and then the mechanism is gone.
+            - "!$test"
           deny:
             - pkg: github.com/mailkube/mailkube-cli/internal/features
               desc: "a feature must not import another feature — share through internal/kernel instead"

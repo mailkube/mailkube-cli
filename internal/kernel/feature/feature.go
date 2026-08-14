@@ -22,13 +22,50 @@ type Feature interface {
 	Command(deps *Deps) *cobra.Command
 }
 
-// Deps is what a feature is given to do its work.
+// Documented is implemented by a feature that maps onto the published API surface, so the parity
+// gate can check that every endpoint is either reachable from a command or deliberately absent.
+type Documented interface {
+	// SurfaceMapping lists the API operations this feature covers.
+	SurfaceMapping() []string
+}
+
+// Diagnosable is implemented by a feature that has something to report about the environment.
 //
-// It is deliberately a struct of interfaces rather than a global: everything a command touches
-// that is not pure computation — the streams it writes to, the clock it reads — arrives here, so
-// a test can substitute all of it. Fields are added as the kernel grows; a feature takes what it
-// needs and ignores the rest.
-type Deps struct {
-	// IO carries the process's input and output streams.
-	IO *IOStreams
+// It is what keeps `doctor` free of a hand-maintained list: doctor walks the registry, so a
+// feature that can diagnose itself contributes its checks by existing.
+type Diagnosable interface {
+	// Checks returns this feature's diagnostics.
+	Checks(deps *Deps) []Check
+}
+
+// Status is the verdict of one diagnostic.
+type Status int
+
+// The verdicts. A check reports at most one of them.
+const (
+	// StatusOK means the check passed.
+	StatusOK Status = iota
+	// StatusWarn means something is missing or unusual but nothing is broken.
+	StatusWarn
+	// StatusFail means the thing being checked does not work.
+	StatusFail
+)
+
+// Check is one diagnostic `doctor` runs.
+//
+// Run returns the finding rather than printing it, so the same check feeds the human screen and
+// the JSON report without either being a re-implementation of the other.
+type Check struct {
+	// Label is the short name of what is being checked, as the report's first column.
+	Label string
+	// Run performs the check and returns its verdict and a one-line detail.
+	Run func() Finding
+}
+
+// Finding is what a Check reports.
+type Finding struct {
+	// Status is the verdict.
+	Status Status `json:"status"`
+	// Detail is the one-line explanation shown beside the label.
+	Detail string `json:"detail"`
 }

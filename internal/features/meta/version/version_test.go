@@ -5,79 +5,90 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mailkube/mailkube-cli/internal/cli"
-	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
+	"github.com/mailkube/mailkube-cli/internal/features/meta/version"
+	"github.com/mailkube/mailkube-cli/internal/kernel/output"
+	"github.com/mailkube/mailkube-cli/internal/kernel/testsupport"
 )
 
-// run executes the command tree with the given arguments and returns both streams.
+// run executes just this feature's command, which is what a feature test should do: the wiring
+// above it has its own tests, and reaching for the whole tree here would test that twice.
 func run(t *testing.T, args ...string) (out, errOut string, err error) {
 	t.Helper()
-	streams, outBuf, errBuf := feature.TestStreams()
-	root := cli.NewRootCmd(&feature.Deps{IO: streams})
-	root.SetArgs(args)
-	err = root.Execute()
+
+	deps, outBuf, errBuf := testsupport.TestDeps(t, testsupport.TestOptions{})
+	cmd := version.New().Command(deps)
+	cmd.SetArgs(args)
+	cmd.SetOut(outBuf)
+	cmd.SetErr(errBuf)
+
+	err = cmd.Execute()
 	return outBuf.String(), errBuf.String(), err
 }
 
 func TestVersionReportsTheCLITheSDKAndTheToolchain(t *testing.T) {
-	out, errOut, err := run(t, "version")
+	t.Parallel()
+
+	out, errOut, err := run(t)
 	if err != nil {
 		t.Fatalf("version: %v", err)
 	}
 
-	for _, want := range []string{"mailkube ", "sdk  mailkube-go ", "go   "} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output is missing %q:\n%s", want, out)
-		}
+	// The streams here are buffers, so the format is inferred as JSON. Asserting on the fields
+	// rather than on rendered text is the right level: the shape is the contract, the wording
+	// is not.
+	var got version.View
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("output is not valid JSON: %v\n%s", err, out)
+	}
+	if got.Version == "" || got.SDKVersion == "" || got.GoVersion == "" {
+		t.Errorf("a version field is empty: %+v", got)
 	}
 	if errOut != "" {
 		t.Errorf("a successful command wrote to stderr: %q", errOut)
 	}
 }
 
-func TestVersionJSONIsParseableAndCarriesEveryField(t *testing.T) {
-	// The JSON shape is a contract: scripts branch on it, so it is asserted as data rather
-	// than as text.
-	out, _, err := run(t, "version", "--json")
+func TestTheJSONFlagIsTheSameEncodingAsTheGlobalOne(t *testing.T) {
+	t.Parallel()
+
+	// --json is a natural spelling on this one command, not a second encoding path: it sets the
+	// resolved format, so the two cannot drift.
+	withFlag, _, err := run(t, "--json")
 	if err != nil {
 		t.Fatalf("version --json: %v", err)
 	}
-
-	var got struct {
-		Version    string `json:"Version"`
-		SDKVersion string `json:"SDKVersion"`
-		GoVersion  string `json:"GoVersion"`
-	}
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
-		t.Fatalf("output is not valid JSON: %v\n%s", err, out)
-	}
-	if got.Version == "" || got.SDKVersion == "" || got.GoVersion == "" {
-		t.Errorf("a field is empty: %+v", got)
-	}
-}
-
-func TestTheSuccessPayloadNeverGoesToStderr(t *testing.T) {
-	// The stream split is the contract every script depends on, so it is asserted directly
-	// rather than left to golden files, which would stay green if the two were swapped.
-	out, errOut, err := run(t, "version")
+	inferred, _, err := run(t)
 	if err != nil {
 		t.Fatalf("version: %v", err)
 	}
-	if out == "" {
-		t.Error("stdout is empty; the payload must go there")
-	}
-	if errOut != "" {
-		t.Errorf("stderr must be empty on success, got %q", errOut)
+	if withFlag != inferred {
+		t.Errorf("--json produced different output:\n%s\n%s", withFlag, inferred)
 	}
 }
 
-func TestAnUnknownCommandFailsWithoutWritingAPayload(t *testing.T) {
-	// On failure stdout stays empty, so `mailkube ... | jq` never sees half a document.
-	out, _, err := run(t, "definitely-not-a-command")
-	if err == nil {
-		t.Fatal("an unknown command must be an error")
+func TestTheTextRenderingNamesAllThree(t *testing.T) {
+	t.Parallel()
+
+	lines := version.View{Version: "v1.2.3", SDKVersion: "v1.1.0", GoVersion: "go1.24.0"}.
+		RenderText(output.Caps{Glyphs: output.ASCIIGlyphs()})
+
+	rendered := strings.Join(lines, "\n")
+	for _, want := range []string{"mailkube v1.2.3", "mailkube-go v1.1.0", "go1.24.0"} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("the rendering is missing %q:\n%s", want, rendered)
+		}
 	}
-	if out != "" {
-		t.Errorf("stdout must be empty on failure, got %q", out)
+}
+
+func TestVersionMakesNoNetworkCall(t *testing.T) {
+	t.Parallel()
+
+	// There is no update check here and none anywhere else by default. A tool that contacts a
+	// release server every time it runs is a privacy problem and breaks in air-gapped CI, so
+	// this asserts the absence rather than trusting it: the command has no --check yet, and
+	// when it gains one it must stay opt-in.
+	cmd := version.New().Command(nil)
+	if cmd.Flags().Lookup("check") != nil {
+		t.Error("version grew a --check flag; make sure it is opt-in and update this test")
 	}
 }

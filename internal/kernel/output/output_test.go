@@ -621,7 +621,7 @@ func TestConfirmReadsTheAnswer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var errOut bytes.Buffer
-			c := output.NewConfirmer(
+			c := output.NewPrompter(
 				strings.NewReader(tc.answer), &errOut, output.Caps{Interactive: true}, false)
 
 			got, err := c.Confirm("Cancel 49 scheduled emails?")
@@ -644,7 +644,7 @@ func TestConfirmKeepsItsPlaceBetweenQuestions(t *testing.T) {
 	t.Parallel()
 
 	var errOut bytes.Buffer
-	c := output.NewConfirmer(strings.NewReader("y\nn\n"), &errOut, output.Caps{Interactive: true}, false)
+	c := output.NewPrompter(strings.NewReader("y\nn\n"), &errOut, output.Caps{Interactive: true}, false)
 
 	first, err := c.Confirm("First?")
 	if err != nil {
@@ -665,7 +665,7 @@ func TestConfirmAnswersItselfWithYes(t *testing.T) {
 	t.Parallel()
 
 	var errOut bytes.Buffer
-	c := output.NewConfirmer(strings.NewReader(""), &errOut, output.Caps{}, true)
+	c := output.NewPrompter(strings.NewReader(""), &errOut, output.Caps{}, true)
 
 	got, err := c.Confirm("Cancel 49 scheduled emails?")
 	if err != nil {
@@ -685,7 +685,7 @@ func TestConfirmRefusesToGuessWithoutATerminal(t *testing.T) {
 	t.Parallel()
 
 	var errOut bytes.Buffer
-	c := output.NewConfirmer(strings.NewReader("y\n"), &errOut, output.Caps{}, false)
+	c := output.NewPrompter(strings.NewReader("y\n"), &errOut, output.Caps{}, false)
 
 	got, err := c.Confirm("Cancel 49 scheduled emails?")
 	if err == nil {

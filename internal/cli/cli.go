@@ -10,6 +10,7 @@ import (
 
 	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
+	"github.com/mailkube/mailkube-cli/internal/kernel/settings"
 )
 
 // NewRootCmd builds the root command and every feature subtree beneath it.
@@ -43,10 +44,51 @@ func NewRootCmd(deps *feature.Deps) *cobra.Command {
 	root.Args = cobra.ArbitraryArgs
 	root.RunE = rootRun
 
+	if deps.Globals == nil {
+		deps.Globals = &settings.Globals{}
+	}
+	deps.Globals.Register(root.PersistentFlags())
+
+	// Everything that depends on a flag — the config path, the output format, whether colour
+	// is allowed — is resolved here, after parsing and before any command body runs. Doing it
+	// per command would mean every command remembering to, and the first one to forget would
+	// be the one that wrote colour into a pipe.
+	root.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
+		return deps.Prepare()
+	}
+
+	// Cobra ships its own `completion` command that writes to the process's own stdout. This
+	// program has one, wired to the injected streams like every other command, so the built-in
+	// is turned off rather than left to shadow it.
+	root.CompletionOptions.DisableDefaultCmd = true
+
+	installHelp(root, deps)
+
 	for _, f := range Registry() {
 		root.AddCommand(f.Command(deps))
 	}
+
+	// Argument validation happens inside cobra, which reports "accepts 1 arg(s), received 0" as
+	// an ordinary error carrying no category. Left alone it falls through the exit-code chain to
+	// the server-error default, so a typo would exit 8 and be reported as retryable. Tagging it
+	// here, once, is what keeps the mapping a mapping rather than a match on cobra's wording.
+	tagUsageErrors(root)
 	return root
+}
+
+// tagUsageErrors marks every command's argument validation as a usage failure.
+func tagUsageErrors(cmd *cobra.Command) {
+	for _, child := range cmd.Commands() {
+		tagUsageErrors(child)
+	}
+
+	validate := cmd.Args
+	if validate == nil {
+		return
+	}
+	cmd.Args = func(c *cobra.Command, args []string) error {
+		return errs.WithCode(errs.CodeUsage, validate(c, args))
+	}
 }
 
 // rootRun handles an invocation that matched no subcommand.
@@ -58,6 +100,5 @@ func rootRun(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return cmd.Help()
 	}
-	return errs.Usagef("unknown command %q for %q\nRun 'mailkube --help' for the command list.",
-		args[0], cmd.CommandPath())
+	return errs.Usagef("%s", unknownCommand(args[0], cmd.CommandPath()))
 }

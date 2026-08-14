@@ -1,0 +1,3 @@
+✗ Invalid SMTP username "myapp01"
+  The username must be localpart@verified-domain, for example myapp01@acme.com.
+  Repeated malformed sign-ins may get your IP blocked. Not attempting to connect.

@@ -64,7 +64,12 @@ type SMTP struct {
 	// Host is the submission host.
 	Host string `toml:"host,omitempty"`
 	// Port is the submission port, conventionally 587 for STARTTLS or 465 for implicit TLS.
-	Port int `toml:"port,omitempty"`
+	//
+	// A pointer, so that "not configured" and "zero" are distinguishable in the file. The TOML
+	// encoder's omitempty covers strings, maps and slices but not numbers, so a plain int would
+	// write `port = 0` into a config a user is expected to read and edit by hand — a value that
+	// is not a port, presented as though someone had chosen it.
+	Port *int `toml:"port,omitempty"`
 	// TLS is "starttls" or "implicit".
 	TLS string `toml:"tls,omitempty"`
 }
@@ -222,3 +227,10 @@ func (s *Store) PermissionWarning() (string, error) {
 	}
 	return "", nil
 }
+
+// Port wraps a port number for storing in an SMTP block.
+//
+// A one-line helper because the field is a pointer, and `&587` is not valid Go: without this,
+// every caller would need a throwaway variable, which is the kind of friction that eventually
+// argues the field back into being a plain int and the zero port back into the file.
+func Port(n int) *int { return &n }

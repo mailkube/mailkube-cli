@@ -1,0 +1,2 @@
+✗ unknown setting "api_secret"
+  Settable keys: api_key, base_url, smtp_host, smtp_port, smtp_tls, smtp_user.

@@ -42,7 +42,7 @@ func TestUpdateRoundTripsEveryField(t *testing.T) {
 			BaseURL: "https://api.example.com/mta/v1/",
 			SMTP: &configstore.SMTP{
 				Username: "app01@acme.com", Password: "secret",
-				Host: "smtp.example.com", Port: 587, TLS: "starttls",
+				Host: "smtp.example.com", Port: configstore.Port(587), TLS: "starttls",
 			},
 		}
 		return nil
@@ -60,7 +60,7 @@ func TestUpdateRoundTripsEveryField(t *testing.T) {
 	if cfg.ActiveProfile != "default" || got.APIKey != "mk_test" {
 		t.Errorf("profile = %+v, active = %q", got, cfg.ActiveProfile)
 	}
-	if got.SMTP == nil || got.SMTP.Username != "app01@acme.com" || got.SMTP.Port != 587 {
+	if got.SMTP == nil || got.SMTP.Username != "app01@acme.com" || got.SMTP.Port == nil || *got.SMTP.Port != 587 {
 		t.Errorf("smtp = %+v", got.SMTP)
 	}
 }
