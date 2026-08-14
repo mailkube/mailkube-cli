@@ -7,8 +7,8 @@
 Send mail, manage scheduled sends, and receive webhooks from your terminal.
 Built for humans, scripts, CI and coding agents.
 
-> **Early development.** The command surface is still being built out and is not yet stable.
-> The first stable release will be `v1.0.0`.
+> **Early development.** `v1.0.0` has shipped, but the command surface is still being built out
+> and is not yet stable — expect breaking changes ahead of a `v2`.
 
 ## What it does, and what it does not
 
@@ -23,8 +23,6 @@ been accepted is not queryable, and delivery outcomes are pushed to you as webho
 of being polled. `mailkube webhooks listen` is how you observe them locally.
 
 ## Install
-
-Not yet published. Until the first release, build from source:
 
 ```bash
 go install github.com/mailkube/mailkube-cli/cmd/mailkube@latest
