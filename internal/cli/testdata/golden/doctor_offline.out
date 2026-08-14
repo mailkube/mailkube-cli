@@ -1,0 +1,7 @@
+  ✓  CLI       dev  (sdk mailkube-go unknown)
+  ✓  Config    /tmp/mailkube-golden/config.toml
+  ⚠  API key   not configured — run `mailkube auth login`
+  ⚠  SMTP      not configured — needed for --transport smtp
+  ✓  Terminal  no terminal (output defaults to JSON), unicode, no color
+
+  2 warnings.

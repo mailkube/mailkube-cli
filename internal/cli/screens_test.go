@@ -44,9 +44,40 @@ func TestScreens(t *testing.T) {
 		{name: "doctor_offline", args: []string{"doctor", "--offline", "-o", "text"}},
 		{name: "commands_paths", args: []string{"commands", "-o", "text"}},
 
+		{name: "emails_skeleton", args: []string{"emails", "send", "--generate-skeleton", "-o", "text"}},
+		{
+			// No credential is needed to preview a payload, and none is configured here:
+			// the safe habit must not be the one that requires setup first.
+			name: "emails_dry_run",
+			args: []string{
+				"emails", "send", "-o", "text", "--dry-run",
+				"--from", "Acme <hello@acme.com>", "--to", "alice@example.com",
+				"--subject", "Hi", "--text", "yo",
+			},
+		},
+		{
+			name: "error_invalid_tag",
+			args: []string{
+				"emails", "send", "--dry-run",
+				"--from", "hello@acme.com", "--to", "alice@example.com",
+				"--subject", "Hi", "--text", "yo", "--tag", "campaign name=x",
+			},
+			wantCode: errs.CodeValidation,
+		},
+		{
+			// Refused before a socket is opened, and the report names every way to supply
+			// a credential rather than the SDK constructor option the library would cite.
+			name: "error_no_credential",
+			args: []string{
+				"emails", "send",
+				"--from", "hello@acme.com", "--to", "alice@example.com",
+				"--subject", "Hi", "--text", "yo",
+			},
+			wantCode: errs.CodeAuth,
+		},
 		{
 			name:     "error_unknown_command",
-			args:     []string{"emails"},
+			args:     []string{"contacts"},
 			wantCode: errs.CodeUsage,
 		},
 		{

@@ -153,8 +153,23 @@ func RequireAPIKey(settings Settings) error {
 	if strings.TrimSpace(settings.APIKey) != "" {
 		return nil
 	}
-	// The SDK's own error, not a second spelling of it: the exit-code chain already maps this
-	// one to the authentication code, and two errors for one condition means one of them is
-	// untested.
-	return mailkube.ErrNoAPIKey
+	return missingKey{}
 }
+
+// missingKey is the SDK's missing-credential error, told in the CLI's terms.
+//
+// It wraps rather than replaces, so errors.Is still finds ErrNoAPIKey and the exit chain still
+// maps it to the authentication code: this is one condition with one identity, not a second
+// spelling of it. Only the sentence changes, and it has to — the SDK's own message names a Go
+// constructor option, which is sound advice for a program embedding the library and no advice at
+// all for someone who typed a command.
+type missingKey struct{}
+
+// Error implements error.
+func (missingKey) Error() string {
+	return "no API key configured\n" +
+		"Run `mailkube auth login`, or pass --api-key, or set MAILKUBE_API_KEY."
+}
+
+// Unwrap keeps the SDK's sentinel reachable through errors.Is.
+func (missingKey) Unwrap() error { return mailkube.ErrNoAPIKey }

@@ -9,6 +9,8 @@ github.com/itchyny/timefmt-go v0.1.6 h1:ia3s54iciXDdzWzwaVKXZPbiXzxxnv1SPGFfM/my
 github.com/itchyny/timefmt-go v0.1.6/go.mod h1:RRDZYC5s9ErkjQvTvvU7keJjxUYzIISJGxm9/mAERQg=
 github.com/mailkube/mailkube-go v1.0.0 h1:pA5eqx2amWStv95LYI3oLSNrARgppXs8bChk6dgHmFw=
 github.com/mailkube/mailkube-go v1.0.0/go.mod h1:7um/csngbfFqB3kU8gtfUtjpLocFDepp4/K5fWWmAPA=
+github.com/mailkube/mailkube-go v1.1.0 h1:DYr+Ja49Iz/vPi0DDdd4Zi0K4Vepk57ZxNmrW16iPcs=
+github.com/mailkube/mailkube-go v1.1.0/go.mod h1:7um/csngbfFqB3kU8gtfUtjpLocFDepp4/K5fWWmAPA=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
 github.com/spf13/cobra v1.10.2/go.mod h1:7C1pvHqHw5A4vrJfjNwvOdzYu0Gml16OCs2GRiTUUS4=

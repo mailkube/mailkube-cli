@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/mailkube/mailkube-cli/internal/features/emails"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/auth"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/commands"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/completion"
@@ -29,6 +30,7 @@ func Registry() []feature.Feature {
 	credentials := auth.New()
 
 	return []feature.Feature{
+		emails.New(),
 		auth.NewInit(credentials),
 		credentials,
 		config.New(),

@@ -1,0 +1,28 @@
+mailkube
+mailkube auth
+mailkube auth login
+mailkube auth logout
+mailkube auth status
+mailkube commands
+mailkube completion
+mailkube config
+mailkube config get
+mailkube config list
+mailkube config path
+mailkube config profile
+mailkube config profile delete
+mailkube config profile list
+mailkube config profile use
+mailkube config set
+mailkube config unset
+mailkube doctor
+mailkube emails
+mailkube emails send
+mailkube help
+mailkube init
+mailkube skill
+mailkube skill install
+mailkube skill path
+mailkube skill show
+mailkube topic
+mailkube version

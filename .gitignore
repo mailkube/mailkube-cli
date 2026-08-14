@@ -3,6 +3,11 @@
 *.test
 *.out
 
+# Golden files are the committed record of every screen, and half of each screen is stdout.
+# Without this the *.out rule above quietly excludes the payload stream — the one the stream
+# contract exists to protect — leaving the suite reviewable only in its stderr half.
+!**/testdata/golden/*.out
+
 # Build output
 /dist/
 /bin/

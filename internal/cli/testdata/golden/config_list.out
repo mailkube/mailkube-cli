@@ -1,0 +1,7 @@
+SETTING    VALUE                             SOURCE
+profile    default                           config file
+api_key    mk_j3k…f8a2                       config file
+base_url   https://api.mailkube.com/mta/v1/  (default)
+smtp_user  app01@acme.com                    config file
+timeout    30s                               (default)
+output     text                              flag --output

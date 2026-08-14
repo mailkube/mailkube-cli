@@ -146,7 +146,9 @@ func TestTheCommandTreeIsVersionedAndComplete(t *testing.T) {
 	for _, c := range tree.Command.Commands {
 		found[c.Name] = true
 	}
-	for _, want := range []string{"auth", "commands", "completion", "config", "doctor", "init", "skill", "topic", "version"} {
+	for _, want := range []string{
+		"auth", "commands", "completion", "config", "doctor", "emails", "init", "skill", "topic", "version",
+	} {
 		if !found[want] {
 			t.Errorf("the command tree does not contain %q", want)
 		}

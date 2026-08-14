@@ -1,0 +1,7 @@
+SETTING    VALUE                             SOURCE
+profile    default                           (default)
+api_key    -                                 (not set)
+base_url   https://api.mailkube.com/mta/v1/  (default)
+smtp_user  -                                 (not set)
+timeout    30s                               (default)
+output     text                              flag --output

@@ -40,6 +40,40 @@ type Detail struct {
 	RetryNote string `json:"-"`
 }
 
+// Adviser is an error that carries extra lines for its own report.
+//
+// The interface exists so a command can say something specific about a failure without the kernel
+// growing a case for every command in the program. The kernel decides what an error *is*; only
+// the command knows what to do about it in that context.
+type Adviser interface {
+	error
+	// Advice returns lines to render under the message, and a retry note replacing the
+	// generic one. Either may be empty.
+	Advice() (hints []string, retryNote string)
+}
+
+// advised attaches reporting advice to an error, leaving it inspectable.
+type advised struct {
+	err   error
+	hints []string
+	note  string
+}
+
+func (a *advised) Error() string              { return a.err.Error() }
+func (a *advised) Unwrap() error              { return a.err }
+func (a *advised) Advice() ([]string, string) { return a.hints, a.note }
+
+// Advise attaches reporting lines to an error.
+//
+// The error keeps its identity: errors.Is and errors.As still see through this, so the exit code
+// and the error name are unaffected by a command choosing to explain itself.
+func Advise(err error, retryNote string, hints ...string) error {
+	if err == nil {
+		return nil
+	}
+	return &advised{err: err, hints: hints, note: retryNote}
+}
+
 // envelope is the documented JSON error shape: {"error": {...}}.
 type envelope struct {
 	Error Detail `json:"error"`
@@ -66,6 +100,11 @@ func Describe(err error) Detail {
 		d.StatusCode = apiErr.StatusCode
 		d.RequestID = apiErr.RequestID
 		d.RetryAfter = apiErr.RetryAfter
+	}
+
+	var adviser Adviser
+	if errors.As(err, &adviser) {
+		d.Hints, d.RetryNote = adviser.Advice()
 	}
 
 	d.Retryable = retryable(d.Code)

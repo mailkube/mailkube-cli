@@ -1,0 +1,32 @@
+{
+  // required. Display-name form allowed: "Acme <hello@acme.com>"
+  "from": "",
+  // required. Your plan's recipient limit applies.
+  "to": [""],
+  "cc": [],
+  "bcc": [],
+  "reply_to": [],
+  // required. Max 255 characters, no line breaks.
+  "subject": "",
+  // one of html / text / template_id
+  "html": "",
+  "text": "",
+  // mutually exclusive with html and text
+  "template_id": "",
+  // defaults to the published version
+  "template_version": "",
+  // values for the template's placeholders
+  "variables": {},
+  // max 16 characters
+  "topic": "",
+  // max 20; name<=16, value<=32, [A-Za-z0-9_-], unique names
+  "tags": [],
+  // max 20; name<=64, value<=998, no line breaks
+  "headers": {},
+  // {filename, content(base64), content_type}
+  "attachments": [],
+  // RFC 3339 with an offset, in the future
+  "scheduled_at": "",
+  // only valid alongside scheduled_at
+  "batch_id": ""
+}
