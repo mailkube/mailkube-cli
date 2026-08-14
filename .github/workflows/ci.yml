@@ -43,7 +43,7 @@ jobs:
       # running them three times only triples the chance of a flake blocking a merge.
       - name: Lint (golangci-lint — complexity, docs, SOLID smells, staticcheck)
         if: matrix.os == 'ubuntu-latest'
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.1.6
 
