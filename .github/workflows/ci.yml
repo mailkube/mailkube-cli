@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  # No `push: branches: [main]` trigger on purpose. release.yml already runs this entire workflow
+  # through `workflow_call` on every push to `main`, and both runs land in the same
+  # `ci-${{ github.ref }}` concurrency group with cancel-in-progress. A direct trigger therefore
+  # only ever races the gated one: one of the two is cancelled, and the cancelled run is what the
+  # README's CI badge reports. `main` stays fully covered by release.yml's ci-gate job.
+  pull_request:
+  workflow_call: # so release.yml can gate on the full CI
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Three operating systems, not one. This ships a binary to end users, and the things that
+    # break are OS-specific: signal handling, the config directory, the file permission model,
+    # terminal detection, and CRLF in anything the tests compare byte-for-byte. A green
+    # ubuntu-only run tells us almost nothing about the Windows build.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Go 1.24 only, deliberately. The version story reads the module version out of the
+        # build info the toolchain stamps from the VCS tag, which needs 1.24; a 1.23 row would
+        # produce a binary reporting a different version than the one it ships as.
+        go-version: ["1.24"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      # Lint and format run once, on Linux: they inspect source, not platform behaviour, and
+      # running them three times only triples the chance of a flake blocking a merge.
+      - name: Lint (golangci-lint — complexity, docs, SOLID smells, staticcheck)
+        if: matrix.os == 'ubuntu-latest'
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.1.6
+
+      - name: Format check (gofumpt)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          go install mvdan.cc/gofumpt@v0.7.0
+          if [ -n "$(gofumpt -l .)" ]; then
+            echo "gofumpt: the following files need formatting:"
+            gofumpt -l .
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      # -race needs cgo and a supported architecture, so it is the amd64 rows only. cgo stays
+      # enabled here; CGO_ENABLED=0 is a release-build setting, not a test setting.
+      - name: Tests + coverage (race)
+        if: matrix.os != 'macos-latest'
+        run: go test ./... -race -covermode=atomic -coverpkg=./... -coverprofile=coverage.out
+
+      - name: Tests + coverage
+        if: matrix.os == 'macos-latest'
+        run: go test ./... -covermode=atomic -coverpkg=./... -coverprofile=coverage.out
+
+      # One row publishes the number. -coverpkg=./... matters: without it a package with no test
+      # file is absent from the profile entirely, so the gate would be passable by not writing
+      # tests at all.
+      - name: Coverage gate (90% line)
+        if: matrix.os == 'ubuntu-latest'
+        run: ./scripts/check-coverage.sh coverage.out
+
+  dry:
+    # Language-agnostic duplication (DRY) gate — identical across every mailkube repo.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+      - name: Copy-paste detection (jscpd)
+        run: npx --yes jscpd@4 --config .jscpd.json .
+
+  docs:
+    # Governance gate: every .rules/*.md must be indexed in AGENTS.md.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Rule-index sync check
+        run: ./scripts/check-rule-index.sh

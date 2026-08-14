@@ -1,0 +1,45 @@
+name: Release
+
+# Conventional-Commits-driven release: one tag + one GitHub Release, and NOTHING committed
+# back to `main`.
+# There is no publish job — pkg.go.dev indexes the module automatically from its `vX.Y.Z` git tags.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci-gate:
+    # Release only proceeds if the full gated CI (test + dry + docs) is green.
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci-gate
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write # push the tag, create the GitHub Release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      # Creates the TAG and the GitHub Release, and nothing else. No `@semantic-release/git`
+      # and no `@semantic-release/changelog` on purpose: a bot commit to `main` would be
+      # rejected by the branch ruleset, and github-actions[bot] cannot be added to a ruleset
+      # bypass list. The release notes are the changelog. See .rules/RELEASE.md.
+      - name: Release (semantic-release — tag + GitHub Release, no commit, no registry publish)
+        run: >-
+          npx --yes
+          -p semantic-release
+          semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

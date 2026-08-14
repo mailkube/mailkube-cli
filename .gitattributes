@@ -1,0 +1,12 @@
+# Normalise line endings in the repository, and check out LF everywhere.
+#
+# Without this, Git hands out CRLF on Windows and every golden-file comparison fails at once for
+# a reason that has nothing to do with the code. The golden harness normalises endings too; this
+# is the belt to that pair of braces.
+* text=auto eol=lf
+
+# Golden files are compared byte-for-byte. Never let Git rewrite them.
+testdata/** -text
+
+# Generated / vendored
+go.sum linguist-generated=true

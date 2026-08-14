@@ -1,0 +1,133 @@
+# golangci-lint v2 config — the SOLID/KISS/docs/typing lint gates for this repo.
+# NOTE: requires golangci-lint v2.x (schema differs from v1). Verify the pinned action/binary
+# version in .github/workflows/ci.yml matches when bumping.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # `standard` enables errcheck, govet, ineffassign, staticcheck, unused (strict-typing gate #6).
+  default: standard
+  enable:
+    - gocyclo # KISS: cyclomatic complexity (#3)
+    - gocognit # KISS: cognitive complexity (#3)
+    - revive # Docs: exported-symbol comments (#4)
+    - unparam # SOLID/ISP: unused function parameters (#5)
+    - gocritic # SOLID: refactor / simplification smells (#5)
+    - depguard # Architecture: the module-boundary law (see below)
+    - forbidigo # Architecture: the testability seams (see below)
+    - errorlint # Correctness: %w and errors.Is/As over ==
+    - noctx # Correctness: no context-less HTTP requests
+    - bodyclose # Correctness: response bodies are closed
+    - gochecknoglobals # Testability: no package-level mutable state
+    - nolintlint # Hygiene: a //nolint must be specific and explained
+    - misspell
+  settings:
+    gocyclo:
+      min-complexity: 10
+    gocognit:
+      min-complexity: 20
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+
+    # ── The dependency law ────────────────────────────────────────────────────────────────
+    #
+    # The architecture is feature modules over a shared kernel, and it is enforced here rather
+    # than by review, because an architecture nobody can violate accidentally is the only kind
+    # that survives. See .rules/ARCHITECTURE.md.
+    #
+    # depguard denies DIRECT imports only; pulling a package in transitively (net, via net/http)
+    # is expected and is not a violation.
+    depguard:
+      rules:
+        # A feature module is a leaf. It may use the kernel and the SDK, never a sibling:
+        # coupling two features is what turns a registry into a dependency graph.
+        features-are-leaves:
+          files:
+            - "**/internal/features/**"
+          deny:
+            - pkg: github.com/mailkube/mailkube-cli/internal/features
+              desc: "a feature must not import another feature — share through internal/kernel instead"
+
+        # The kernel is the bottom of the stack. If it reaches up into a feature, the direction
+        # of dependency is inverted and the layering is decorative.
+        kernel-depends-on-nothing-above-it:
+          files:
+            - "**/internal/kernel/**"
+          deny:
+            - pkg: github.com/mailkube/mailkube-cli/internal/features
+              desc: "the kernel must not import a feature — invert the dependency with an interface"
+
+        # The CLI speaks no protocol directly. Every API call goes through the mailkube-go SDK,
+        # and SMTP lives in the SDK's smtp subpackage. net/smtp here would mean a second
+        # implementation of the wire format.
+        no-hand-rolled-protocols:
+          files:
+            - "$all"
+            - "!$test"
+          deny:
+            - pkg: net/smtp
+              desc: "SMTP belongs to the SDK's smtp subpackage — the CLI never speaks it directly"
+
+        # net/http is for constructing an *http.Client to hand the SDK, serving the local
+        # webhook listener, and two meta commands that probe. Anywhere else it is a REST call
+        # that bypassed the SDK.
+        http-only-where-it-belongs:
+          files:
+            - "$all"
+            - "!$test"
+            - "!**/internal/kernel/clientfactory/**"
+            - "!**/internal/kernel/tunnel/**"
+            - "!**/internal/features/webhooks/**"
+            - "!**/internal/features/meta/version/**"
+            - "!**/internal/features/meta/doctor/**"
+          deny:
+            - pkg: net/http
+              desc: "call the API through the SDK; net/http is allowed only in clientfactory, tunnel, webhooks, version and doctor"
+
+    # ── The testability seams ─────────────────────────────────────────────────────────────
+    #
+    # Each of these has exactly one home, so a test can substitute it. A direct call elsewhere
+    # is an untestable dependency on the process, the wall clock, or the terminal.
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^fmt\.Print.*$
+          msg: "write through the injected iostreams so output is capturable in tests"
+        - pattern: ^os\.(Stdout|Stderr|Stdin)$
+          msg: "take the streams from iostreams rather than reaching for the process's own"
+        - pattern: ^log\.(Print|Fatal|Panic).*$
+          msg: "use the injected slog handler; the CLI has one logging path"
+        - pattern: ^time\.Now$
+          msg: "take the time from the injected clock so golden output is deterministic"
+        - pattern: ^os\.Exit$
+          msg: "return an error; main is the only place that turns one into an exit code"
+  exclusions:
+    rules:
+      # Tests may skip doc comments, unused-param and complexity limits (mirrors python's tests/* ignores).
+      - path: _test\.go
+        linters:
+          - revive
+          - unparam
+          - gocyclo
+          - gocognit
+          - errcheck
+          # A test is where the seams get exercised: it constructs fixed clocks, captures
+          # streams, and asserts on exit codes. Enforcing the seams inside the tests that test
+          # them is circular.
+          - forbidigo
+          - gochecknoglobals
+
+      # main is the one place allowed to end the process. Everything above it returns an error;
+      # this is where an error becomes an exit code, and it stays a couple of lines long.
+      - path: ^cmd/mailkube/main\.go$
+        linters:
+          - forbidigo
+
+# Formatting gate (#7): `golangci-lint fmt` applies gofumpt; CI additionally hard-checks with gofumpt.
+formatters:
+  enable:
+    - gofumpt

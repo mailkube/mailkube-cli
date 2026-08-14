@@ -1,0 +1,30 @@
+# Binaries & test artifacts
+*.exe
+*.test
+*.out
+
+# Build output
+/dist/
+/bin/
+
+# Coverage
+coverage.out
+coverage.txt
+
+# Go workspace
+go.work
+go.work.sum
+
+# Tooling caches
+.jscpd/
+
+# Secrets / local config
+.env
+
+# Local SDK co-development; never committed (see .rules/ARCHITECTURE.md).
+go.work
+go.work.sum
+
+# Build output
+/dist/
+/mailkube

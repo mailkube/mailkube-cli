@@ -1,0 +1,25 @@
+name: PR Title
+
+# Enforce Conventional Commits on the PR title, since PRs are squash-merged using it.
+# Only `feat:`, `fix:`, and `perf:` trigger a release on `main`.
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  conventional-title:
+    # The job-level `name:` is load-bearing, not cosmetic. A required status check is matched on
+    # the JOB name, and with no `name:` here GitHub reports the job *id* — `conventional-title`.
+    # The setup docs (Makefile, README) tell maintainers to require a check called `PR-title`, so
+    # without this line that ruleset waits forever on a check that is never reported and every PR
+    # is permanently blocked. Renaming the job id instead would not work: `-` is fine in an id, but
+    # the docs and the id would still have to be kept in step by hand.
+    name: PR-title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
