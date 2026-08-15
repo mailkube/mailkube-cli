@@ -2,15 +2,20 @@ name: Publish
 
 # Publishes an existing tag to every channel.
 #
-# Split into one job per channel, and every job is idempotent: re-running it against a tag that is
-# already published replaces what it produced rather than failing on a duplicate. That property is
-# the point of the split. A channel that fails after the release is made would otherwise leave
-# some channels serving the new version and others silently serving the old one, which nobody
-# finds until the *next* release, because the first one got fixed by hand.
+# Split into one job per channel, so a channel that fails can be retried on its own. Without that,
+# a failure after the release is made leaves some channels serving the new version and others
+# silently serving the old one, which nobody finds until the *next* release, because the first one
+# got fixed by hand.
 #
 # Recovering from a partial publish is "Re-run failed jobs": the channels that succeeded are left
-# alone and the one that failed retries on its own. Publishing a tag from scratch is a manual run
-# with the tag, which reaches the same end state.
+# alone and the one that failed retries on its own. The tap and the bucket are idempotent without
+# qualification, since each re-run overwrites the manifest it wrote.
+#
+# `assets` is idempotent in the case that matters and not beyond it. While it is failing, the
+# release is still a draft and a re-run refills it. Once it has succeeded, the release is published
+# and GitHub has sealed it: nothing can be added, and nothing needs to be. So a re-run against an
+# already-published tag is not the recovery path and will not behave like one. Re-releasing means
+# a new version, which is what a fix commit produces anyway.
 on:
   workflow_call:
     inputs:

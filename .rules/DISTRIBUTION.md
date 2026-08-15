@@ -40,18 +40,41 @@ that, and neither is optional:
 
 If you add a step that writes into the tree, that assertion is what will tell you.
 
-## Publishing is per channel, and every job is idempotent
+## The release is drafted, then filled, then published — in that order
 
-`publish.yml` has one job per channel, and re-running a job against a tag that is already published
-replaces what that job produced rather than failing on a duplicate.
+**A published release cannot be added to.** GitHub seals one on publication: its assets and its tag
+are fixed from that moment and an upload afterwards is refused, so a release that is published
+before its artifacts exist is a release that can never carry them. That is permanent per tag; the
+only remedy is a new version.
 
-That is the whole reason for the split. A channel that fails after the release is made would
-otherwise leave some channels on the new version and others silently on the old one, and nobody
-finds it until the *next* release, because the first was fixed by hand.
+So the order is fixed, and three settings hold it:
+
+| Step | Who | Setting |
+|---|---|---|
+| Draft the release, with the notes | `.releaserc.json` | `draftRelease: true` |
+| Fill it with every artifact | `.goreleaser.yaml` | `use_existing_draft: true` |
+| Publish it, last | `.goreleaser.yaml` | the absence of `draft: true` |
+
+**The draft is matched by name, not by tag.** The name the notes are drafted under and
+`release.name_template` have to be the same string, or the draft is passed over in silence and the
+uploads fail. Both spell it `v1.2.3`; move one and you move both.
+
+This is also why a failed publish leaves nothing visible. The release stays a draft until the last
+step, so a run that dies part-way leaves a draft rather than a public, empty release.
+
+## Publishing is per channel
+
+`publish.yml` has one job per channel so a channel that fails can be retried alone. Without that, a
+failure after the release is made leaves some channels on the new version and others silently on
+the old one, and nobody finds it until the *next* release, because the first was fixed by hand.
 
 - **Recovering a partial publish**: re-run the failed job. The channels that succeeded are
   untouched.
-- **Publishing an existing tag from scratch**: run `publish.yml` manually with the tag.
+- **The tap and the bucket** are idempotent without qualification: each re-run overwrites the
+  manifest it wrote.
+- **`assets` is idempotent only while the release is a draft**, which is the whole window in which
+  it is failing, and so the whole window in which a re-run is what you want. After it succeeds the
+  release is sealed, a re-run is not the recovery path, and re-releasing means a new version.
 - **Do not** make a publish job depend on state built by a previous run of the workflow. Each job
   must be able to reach its end state from the tag alone, or from an artifact of the run it is in.
 
