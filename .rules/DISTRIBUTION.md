@@ -118,6 +118,14 @@ check, the extraction and the resulting binary.
   flags belong to it rather than to us. The version that signs and the version a user verifies
   with have to agree on a format, so moving it is a deliberate change to this file and both
   installers, never a version float.
+- **The installers pin the signing identity to `publish.yml` on the default branch**, because that
+  is the run that signs: the release is cut by a push to that branch and the tag is created during
+  the run, so the certificate names the branch and never a tag. Anchored at both ends, since the
+  publish workflow can also be started by hand from any branch. Moving the release trigger means
+  moving this identity in both installers, in the same change.
+- **A failed signature prints cosign's own reason before the verdict.** Without it every failure
+  reads the same, and the difference between a stale bundle, an identity that moved and a tampered
+  file is the whole diagnosis.
 - **No `--insecure`, anywhere.** Not in the installers, not on either transport.
 
 ## Deliberately not done
