@@ -38,7 +38,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
+      # The same version the release was signed with, so this measures the installers rather than
+      # a skew between two cosign releases.
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.6
 
       - name: Install from the release
         if: runner.os != 'Windows'

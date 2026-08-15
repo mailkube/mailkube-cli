@@ -88,7 +88,13 @@ check, the extraction and the resulting binary.
 - **Download, verify, then extract.** Never extract and check afterwards: by then the bytes are
   already on disk.
 - **The signature covers the checksum file**, which covers every artifact, so one verification
-  covers the whole release. cosign is optional to install and used when present.
+  covers the whole release. It ships as a single Sigstore bundle, `checksums.txt.sigstore.json`,
+  holding the signature, the certificate and the transparency-log entry together. cosign is
+  optional to install and used when present.
+- **cosign is pinned to a major version in the workflows**, because the signing and verification
+  flags belong to it rather than to us. The version that signs and the version a user verifies
+  with have to agree on a format, so moving it is a deliberate change to this file and both
+  installers, never a version float.
 - **No `--insecure`, anywhere.** Not in the installers, not on either transport.
 
 ## Deliberately not done

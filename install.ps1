@@ -99,10 +99,8 @@ function Test-Signature {
     }
 
     $dir = Split-Path -Parent $ChecksumFile
-    $sig = Join-Path $dir 'checksums.txt.sig'
-    $pem = Join-Path $dir 'checksums.txt.pem'
-    Invoke-WebRequest -Uri "$BaseUrl/checksums.txt.sig" -OutFile $sig -UseBasicParsing
-    Invoke-WebRequest -Uri "$BaseUrl/checksums.txt.pem" -OutFile $pem -UseBasicParsing
+    $bundle = Join-Path $dir 'checksums.txt.sigstore.json'
+    Invoke-WebRequest -Uri "$BaseUrl/checksums.txt.sigstore.json" -OutFile $bundle -UseBasicParsing
 
     # An external program's progress output arrives on the error stream, and with the preference
     # set to Stop that alone would abort here as though verification had failed. The exit code is
@@ -112,8 +110,7 @@ function Test-Signature {
     $ErrorActionPreference = 'Continue'
     try {
         $output = & cosign verify-blob $ChecksumFile `
-            --signature $sig `
-            --certificate $pem `
+            --bundle $bundle `
             --certificate-identity-regexp $CertIdentity `
             --certificate-oidc-issuer $CertIssuer 2>&1
     }
@@ -123,7 +120,11 @@ function Test-Signature {
 
     if ($LASTEXITCODE -ne 0) {
         $output | ForEach-Object { Write-Step "  $_" }
-        throw 'Signature verification failed. Do not use this download.'
+        throw @'
+Signature verification failed. Do not use this download.
+The signature is a Sigstore bundle, which cosign reads from v3 onwards. If yours
+is older, upgrading it is worth ruling out before treating this as tampering.
+'@
     }
     Write-Step '+ Signature verified'
 }

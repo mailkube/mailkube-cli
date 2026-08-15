@@ -78,13 +78,21 @@ signs:
   # Keyless signing over the checksum file. Signing the checksums rather than each archive is
   # what makes the whole release verifiable from one signature: the checksum file covers every
   # artifact, and the signature covers the checksum file.
+  #
+  # One Sigstore bundle, not a separate signature and certificate. The bundle carries both, plus
+  # the transparency-log entry that proves when it was signed, so verification needs one file
+  # instead of three agreeing with each other.
+  #
+  # These flags are tied to the cosign major version, which is why the workflows pin it rather
+  # than taking whatever the installer offers. cosign 3 made this format the default and turned
+  # the older `--output-signature` / `--output-certificate` pair into flags it accepts, warns
+  # about and then ignores, which fails as a missing bundle path rather than as a bad flag.
   - id: checksums
     cmd: cosign
-    certificate: "${artifact}.pem"
+    signature: "${artifact}.sigstore.json"
     args:
       - sign-blob
-      - "--output-certificate=${certificate}"
-      - "--output-signature=${signature}"
+      - "--bundle=${signature}"
       - "${artifact}"
       - --yes
     artifacts: checksum
