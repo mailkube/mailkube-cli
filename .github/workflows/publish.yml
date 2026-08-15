@@ -1,0 +1,194 @@
+name: Publish
+
+# Publishes an existing tag to every channel.
+#
+# Split into one job per channel, and every job is idempotent: re-running it against a tag that is
+# already published replaces what it produced rather than failing on a duplicate. That property is
+# the point of the split. A channel that fails after the release is made would otherwise leave
+# some channels serving the new version and others silently serving the old one, which nobody
+# finds until the *next* release, because the first one got fixed by hand.
+#
+# Recovering from a partial publish is "Re-run failed jobs": the channels that succeeded are left
+# alone and the one that failed retries on its own. Publishing a tag from scratch is a manual run
+# with the tag, which reaches the same end state.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The tag to publish, for example v1.2.3.
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to publish, for example v1.2.3.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never cancelled. A publish interrupted halfway is the exact state this workflow is shaped to
+  # avoid, so a second run waits for the first rather than replacing it.
+  group: publish-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  assets:
+    name: Release assets and images
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: write # append artifacts to the release
+      packages: write # push images
+      id-token: write # keyless signing, and the provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0 # the version is read from the tag history
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.24"
+          cache: true
+
+      # Emulation for the second architecture, so one runner can build both images.
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      # This is the whole version story, asserted once before anything is published.
+      #
+      # Nothing injects the version: the toolchain stamps it from the tag and the binary reads it
+      # back. That works only from a clean checkout, so a generated file landing anywhere tracked
+      # would silently ship binaries marked dirty. Generating the completions FIRST and checking
+      # AFTER is what makes this catch that, rather than testing a tree the release will not use.
+      - name: The binary must report the tag it is built from
+        run: |
+          ./scripts/gen-completions.sh
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "The working tree is not clean; the release would be stamped as a dirty build:"
+            git status --porcelain
+            exit 1
+          fi
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tmp/mailkube ./cmd/mailkube
+          reported=$(/tmp/mailkube version --json | jq -r .version)
+          if [ "$reported" != "${{ inputs.tag }}" ]; then
+            echo "The binary reports ${reported}, but this is a release of ${{ inputs.tag }}."
+            exit 1
+          fi
+          echo "Version check OK: ${reported}"
+
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Attests that these exact archives came out of this workflow, on this commit. The checksum
+      # signature says the release is internally consistent; this says where it was built.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+      # The tap and bucket jobs consume these rather than rebuilding. Two runs of the same tag
+      # produce identical bytes, but "identical" and "the same" are not the same claim, and a
+      # channel should publish the artifact that was actually released.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: channel-manifests
+          path: |
+            dist/homebrew/Casks/mailkube.rb
+            dist/scoop/mailkube.json
+          if-no-files-found: error
+          retention-days: 7
+
+  homebrew:
+    name: Homebrew tap
+    needs: assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: channel-manifests
+          path: manifests
+
+      # A separate repository, so a separate credential: the token this workflow is given by
+      # default cannot write anywhere but here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mailkube/homebrew-tap
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          path: tap
+
+      - name: Update the formula
+        working-directory: tap
+        run: |
+          mkdir -p Casks
+          cp ../manifests/homebrew/Casks/mailkube.rb Casks/mailkube.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/mailkube.rb
+          # A re-run after a successful push has nothing to commit, and that is a success, not a
+          # failure: the channel is already serving the version this run was asked to publish.
+          if git diff --cached --quiet; then
+            echo "The tap already serves ${{ inputs.tag }}."
+            exit 0
+          fi
+          git commit -m "mailkube ${{ inputs.tag }}"
+          git push
+
+  scoop:
+    name: Scoop bucket
+    needs: assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: channel-manifests
+          path: manifests
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mailkube/scoop-bucket
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          path: bucket
+
+      - name: Update the manifest
+        working-directory: bucket
+        run: |
+          mkdir -p bucket
+          cp ../manifests/scoop/mailkube.json bucket/mailkube.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bucket/mailkube.json
+          if git diff --cached --quiet; then
+            echo "The bucket already serves ${{ inputs.tag }}."
+            exit 0
+          fi
+          git commit -m "mailkube ${{ inputs.tag }}"
+          git push

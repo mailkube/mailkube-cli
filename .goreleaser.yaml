@@ -1,0 +1,210 @@
+# Release build. One tag in, every channel out.
+#
+# The pipeline is deliberately reproducible: `-trimpath` strips local paths, `CGO_ENABLED=0`
+# removes the host toolchain from the result, and `mod_timestamp` pins every archive entry to the
+# commit time rather than the build time. Two runs of the same tag therefore produce identical
+# bytes, which is what makes a channel job safe to re-run on its own.
+version: 2
+
+project_name: mailkube
+
+before:
+  hooks:
+    # Shell completions are generated from the command tree, not written by hand, so a new command
+    # cannot ship with a completion file that has never heard of it. They land in an ignored
+    # directory: a generated file anywhere tracked would mark the checkout dirty, and a dirty
+    # checkout makes the toolchain stamp the binary with a version that is not the released one.
+    - ./scripts/gen-completions.sh
+
+builds:
+  - id: mailkube
+    main: ./cmd/mailkube
+    binary: mailkube
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    # Only the symbol table and DWARF are stripped. The version is NOT injected here: the
+    # toolchain stamps the module version from the VCS tag and the binary reads it back out of
+    # its own build info, so there is no linker flag and no literal to keep in step. Build
+    # information survives -s -w; it lives in its own section.
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64, arm]
+    goarm: ["7"]
+    ignore:
+      # 32-bit ARM exists on Linux boards and nowhere else this tool ships.
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
+
+universal_binaries:
+  # One macOS download that runs on both architectures, so nobody has to know which Mac they have.
+  # `replace` drops the two single-architecture builds from the release rather than shipping three
+  # macOS archives that differ only in a detail the user cannot see.
+  - id: mailkube
+    replace: true
+
+archives:
+  - id: mailkube
+    ids: [mailkube]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
+      {{- if eq .Arch "all" }}universal
+      {{- else }}{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+      {{- end }}
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+      - src: completions/*
+        dst: completions
+        strip_parent: true
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+sboms:
+  # One SBOM per archive, so a consumer can answer "what is inside the thing I downloaded"
+  # against the artifact they actually have rather than against the source tree.
+  - id: archive
+    artifacts: archive
+
+signs:
+  # Keyless signing over the checksum file. Signing the checksums rather than each archive is
+  # what makes the whole release verifiable from one signature: the checksum file covers every
+  # artifact, and the signature covers the checksum file.
+  - id: checksums
+    cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - --yes
+    artifacts: checksum
+    output: true
+
+nfpms:
+  # Distribution packages are release artifacts, not a hosted repository: download one and
+  # install it. There is nothing to add to a sources list and nothing that auto-updates.
+  - id: mailkube
+    ids: [mailkube]
+    package_name: mailkube
+    vendor: Mailkube
+    homepage: https://docs.mailkube.com/cli
+    maintainer: Mailkube <support@mailkube.com>
+    description: Send mail, manage scheduled sends, and receive webhooks from your terminal.
+    license: Apache-2.0
+    formats: [deb, rpm, apk]
+    bindir: /usr/bin
+    contents:
+      - src: completions/mailkube.bash
+        dst: /usr/share/bash-completion/completions/mailkube
+      - src: completions/mailkube.zsh
+        dst: /usr/share/zsh/site-functions/_mailkube
+      - src: completions/mailkube.fish
+        dst: /usr/share/fish/vendor_completions.d/mailkube.fish
+      - src: LICENSE
+        dst: /usr/share/doc/mailkube/LICENSE
+      - src: NOTICE
+        dst: /usr/share/doc/mailkube/NOTICE
+
+dockers_v2:
+  # The image carries the binary and nothing else: no shell, no package manager, no interpreter.
+  # `webhooks listen` is the one command that needs a bind address other than loopback here,
+  # because a published container port cannot reach the container's own loopback interface.
+  #
+  # One entry covers both architectures: the multi-architecture index is published alongside the
+  # per-architecture images, so `docker pull …:1.2.3` resolves correctly with no suffix to guess.
+  - id: mailkube
+    ids: [mailkube]
+    dockerfile: Dockerfile
+    images:
+      - ghcr.io/mailkube/mailkube-cli
+    tags:
+      - "{{ .Version }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.description: The Mailkube command-line interface
+      org.opencontainers.image.url: https://docs.mailkube.com/cli
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.licenses: Apache-2.0
+
+homebrew_casks:
+  # Generated here, pushed by a separate job. Writing to another repository is the one step in
+  # this pipeline that depends on a credential for something outside it, so it is kept out of the
+  # run that publishes the release: a failure there must not be able to leave the release itself
+  # half-made, and the retry must not rebuild anything.
+  - name: mailkube
+    ids: [mailkube]
+    skip_upload: true
+    repository:
+      owner: mailkube
+      name: homebrew-tap
+    homepage: https://docs.mailkube.com/cli
+    description: Send mail, manage scheduled sends, and receive webhooks from your terminal.
+    license: Apache-2.0
+    binaries: [mailkube]
+    completions:
+      bash: completions/mailkube.bash
+      zsh: completions/mailkube.zsh
+      fish: completions/mailkube.fish
+    hooks:
+      post:
+        # macOS marks anything a browser downloaded, and refuses to run it with an error that
+        # does not say so. Clearing the mark after install is what keeps `brew install` followed
+        # by `mailkube` working in one step.
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/mailkube"]
+          end
+
+scoops:
+  - name: mailkube
+    ids: [mailkube]
+    skip_upload: true
+    repository:
+      owner: mailkube
+      name: scoop-bucket
+    homepage: https://docs.mailkube.com/cli
+    description: Send mail, manage scheduled sends, and receive webhooks from your terminal.
+    license: Apache-2.0
+
+release:
+  # The GitHub Release already exists by the time this runs: the version is decided from the
+  # commit history and the release is created with the tag, then the artifacts are appended to
+  # it. `replace_existing_artifacts` is what makes re-running this job against a tag that is
+  # already published a no-op rather than a duplicate-upload error.
+  mode: append
+  replace_existing_artifacts: true
+  github:
+    owner: mailkube
+    name: mailkube-cli
+  extra_files:
+    # The installers ship as release assets so the documented one-liner resolves against the
+    # release itself. Serving them from a branch would mean the script a user runs and the
+    # release it installs could be different things.
+    - glob: install.sh
+    - glob: install.ps1
+
+changelog:
+  # The release notes are written from the commit history when the release is created. Generating
+  # a second changelog here would append a differently-worded copy of the same thing.
+  disable: true

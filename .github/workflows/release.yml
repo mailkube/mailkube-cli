@@ -1,11 +1,13 @@
 name: Release
 
-# Conventional-Commits-driven release: one tag + one GitHub Release, and NOTHING committed
-# back to `main`.
-# There is no publish job — pkg.go.dev indexes the module automatically from its `vX.Y.Z` git tags.
+# Conventional-Commits-driven release. The commit history decides the version, the tag carries it,
+# and nothing is committed back to `main`.
 on:
   push:
     branches: [main]
+
+permissions:
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -13,33 +15,72 @@ concurrency:
 
 jobs:
   ci-gate:
-    # Release only proceeds if the full gated CI (test + dry + docs) is green.
+    # Release only proceeds if the full gated CI is green. Nothing downstream re-runs the tests,
+    # so this is the only thing standing between a red build and a published binary.
     uses: ./.github/workflows/ci.yml
 
-  release:
+  tag:
     needs: ci-gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: release
     permissions:
       contents: write # push the tag, create the GitHub Release
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
 
-      # Creates the TAG and the GitHub Release, and nothing else. No `@semantic-release/git`
-      # and no `@semantic-release/changelog` on purpose: a bot commit to `main` would be
-      # rejected by the branch ruleset, and github-actions[bot] cannot be added to a ruleset
-      # bypass list. The release notes are the changelog. See .rules/RELEASE.md.
-      - name: Release (semantic-release — tag + GitHub Release, no commit, no registry publish)
-        run: >-
-          npx --yes
-          -p semantic-release
-          semantic-release
+      # Creates the TAG and the GitHub Release, and nothing else. No `@semantic-release/git` and
+      # no `@semantic-release/changelog` on purpose: a bot commit to `main` would be rejected by
+      # the branch ruleset, and github-actions[bot] cannot be added to a ruleset bypass list. The
+      # release notes are the changelog. See .rules/RELEASE.md.
+      #
+      # The before/after comparison is how the rest of the workflow learns whether a release
+      # happened. A tag pushed with the workflow's own token does not trigger `on: push: tags`, so
+      # a downstream workflow listening for one would simply never run, and the failure mode is a
+      # release with no artifacts on it: a green run that published nothing.
+      - name: Release (tag + GitHub Release, no commit, no registry publish)
+        id: release
+        run: |
+          before=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          npx --yes -p semantic-release semantic-release
+          git fetch --tags --force
+          after=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+
+          if [ "$before" = "$after" ]; then
+            echo "No release: nothing since ${before} changes the version."
+            exit 0
+          fi
+
+          echo "Released ${after}."
+          echo "tag=${after}" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    # Skipped when the merge was a `chore`, `docs`, `ci`, `refactor` or `test` and no version was
+    # cut. Publishing is keyed on a tag existing, never on the workflow having run.
+    needs: tag
+    if: needs.tag.outputs.tag != ''
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit
+
+  verify:
+    # Installs what was just published, on every channel, and checks that each yields the version
+    # that was released. It runs after the fact by necessity: it can only test artifacts that
+    # exist. A failure here means a channel needs re-running, not that the release is void.
+    needs: [tag, publish]
+    if: needs.tag.outputs.tag != ''
+    uses: ./.github/workflows/verify-release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
