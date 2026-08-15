@@ -48,6 +48,11 @@ linters:
         features-are-leaves:
           files:
             - "**/internal/features/**"
+            # A feature's own external test package imports the package it tests, which is not
+            # a cross-feature dependency. Every other rule here already excludes tests for the
+            # same reason: a rule that fires on the thing it is meant to permit gets loosened,
+            # and then the mechanism is gone.
+            - "!$test"
           deny:
             - pkg: github.com/mailkube/mailkube-cli/internal/features
               desc: "a feature must not import another feature — share through internal/kernel instead"
@@ -61,16 +66,32 @@ linters:
             - pkg: github.com/mailkube/mailkube-cli/internal/features
               desc: "the kernel must not import a feature — invert the dependency with an interface"
 
-        # The CLI speaks no protocol directly. Every API call goes through the mailkube-go SDK,
-        # and SMTP lives in the SDK's smtp subpackage. net/smtp here would mean a second
-        # implementation of the wire format.
-        no-hand-rolled-protocols:
+        # Every Mailkube API call goes through the mailkube-go SDK; that is what the SDK is for.
+        # SMTP is a standard protocol rather than a proprietary one, so it is spoken here — but in
+        # exactly one package, behind an interface, because a second implementation of a wire
+        # format is how two of them start disagreeing.
+        smtp-lives-in-one-place:
           files:
             - "$all"
             - "!$test"
+            - "!**/internal/kernel/smtp/**"
           deny:
             - pkg: net/smtp
-              desc: "SMTP belongs to the SDK's smtp subpackage — the CLI never speaks it directly"
+              desc: "submission is spoken in kernel/smtp only — depend on ports.SMTPSubmitter instead"
+
+        # Bare `net` is a socket, opened or dialled directly. Exactly two packages have a
+        # reason to hold one: the listener, which must bind before it can promise to receive
+        # anything, and the submission client. Anywhere else, a socket is a protocol being
+        # spoken outside the two places this program speaks protocols.
+        sockets-live-in-two-places:
+          files:
+            - "$all"
+            - "!$test"
+            - "!**/internal/features/webhooks/**"
+            - "!**/internal/kernel/smtp/**"
+          deny:
+            - pkg: "net$"
+              desc: "a socket belongs in features/webhooks (the listener) or kernel/smtp (submission)"
 
         # net/http is for constructing an *http.Client to hand the SDK, serving the local
         # webhook listener, and two meta commands that probe. Anywhere else it is a REST call
@@ -80,13 +101,12 @@ linters:
             - "$all"
             - "!$test"
             - "!**/internal/kernel/clientfactory/**"
-            - "!**/internal/kernel/tunnel/**"
             - "!**/internal/features/webhooks/**"
             - "!**/internal/features/meta/version/**"
             - "!**/internal/features/meta/doctor/**"
           deny:
             - pkg: net/http
-              desc: "call the API through the SDK; net/http is allowed only in clientfactory, tunnel, webhooks, version and doctor"
+              desc: "call the API through the SDK; net/http is allowed only in clientfactory, webhooks, version and doctor"
 
     # ── The testability seams ─────────────────────────────────────────────────────────────
     #

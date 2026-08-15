@@ -1,0 +1,10 @@
+POST https://api.mailkube.com/mta/v1/emails
+{
+  "from": "Acme <hello@acme.com>",
+  "to": [
+    "alice@example.com"
+  ],
+  "subject": "Hi",
+  "text": "yo"
+}
+(dry run — nothing was sent)

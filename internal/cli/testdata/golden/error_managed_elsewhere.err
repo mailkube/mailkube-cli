@@ -1,0 +1,6 @@
+✗ domains is managed in the dashboard, not from the command line.
+
+    Domain setup and DNS verification:
+    https://app.mailkube.com/domain/setup
+
+  The CLI covers sending, scheduled sends and the local webhook loop.

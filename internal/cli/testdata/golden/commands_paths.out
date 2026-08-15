@@ -1,0 +1,59 @@
+mailkube
+mailkube api-keys
+mailkube audience
+mailkube auth
+mailkube auth login
+mailkube auth logout
+mailkube auth status
+mailkube commands
+mailkube completion
+mailkube config
+mailkube config get
+mailkube config list
+mailkube config path
+mailkube config profile
+mailkube config profile delete
+mailkube config profile list
+mailkube config profile use
+mailkube config set
+mailkube config unset
+mailkube contacts
+mailkube dashboard
+mailkube doctor
+mailkube domains
+mailkube emails
+mailkube emails get
+mailkube emails list
+mailkube emails send
+mailkube errors
+mailkube errors explain
+mailkube help
+mailkube init
+mailkube scheduled-emails
+mailkube scheduled-emails batches
+mailkube scheduled-emails batches cancel
+mailkube scheduled-emails batches update
+mailkube scheduled-emails cancel
+mailkube scheduled-emails get
+mailkube scheduled-emails list
+mailkube scheduled-emails update
+mailkube segments
+mailkube skill
+mailkube skill install
+mailkube skill path
+mailkube skill show
+mailkube smtp
+mailkube smtp test
+mailkube suppressions
+mailkube templates
+mailkube topic
+mailkube version
+mailkube webhooks
+mailkube webhooks create
+mailkube webhooks delete
+mailkube webhooks get
+mailkube webhooks list
+mailkube webhooks listen
+mailkube webhooks simulate
+mailkube webhooks update
+mailkube webhooks verify

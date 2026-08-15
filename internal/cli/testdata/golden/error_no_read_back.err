@@ -1,0 +1,13 @@
+✗ Mailkube does not provide read-back of sent messages.
+
+  This is by design: the API does not serve past state. Delivery outcomes are
+  pushed as webhook events instead of being polled.
+
+  To observe what happened to a message:
+    mailkube webhooks listen --public-url … --secret …     (locally, live)
+    https://app.mailkube.com/domain/logs     (history)
+
+  Scheduled sends have not been dispatched yet, so those you can read:
+    mailkube scheduled-emails list
+
+  See: mailkube topic webhooks

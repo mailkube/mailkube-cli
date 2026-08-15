@@ -9,6 +9,11 @@ on:
   pull_request:
   workflow_call: # so release.yml can gate on the full CI
 
+# Read-only by default. A job that needs more says so itself, so widening a permission is a
+# visible diff on the job that widened it rather than a workflow-wide default nobody reads.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -20,20 +25,33 @@ jobs:
     # terminal detection, and CRLF in anything the tests compare byte-for-byte. A green
     # ubuntu-only run tells us almost nothing about the Windows build.
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        # Go 1.24 only, deliberately. The version story reads the module version out of the
-        # build info the toolchain stamps from the VCS tag, which needs 1.24; a 1.23 row would
-        # produce a binary reporting a different version than the one it ships as.
-        go-version: ["1.24"]
+        # One Go version, deliberately, and it is the module's own floor rather than a range.
+        # Two reasons, and only the second is about this repository:
+        #
+        #   - the version story reads the module version out of the build info the toolchain
+        #     stamps from the VCS tag, so anything below the floor would produce a binary
+        #     reporting a different version than the one it ships as;
+        #   - `vuln` reports the standard library the build actually uses, so a row on a release
+        #     that no longer receives security fixes turns a real gate into a permanent failure.
+        #
+        # Raise this together with the `go` directive in go.mod, never separately.
+        go-version: ["1.25"]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@v5
+      # check-latest is what stops this being a race with the runner image. Without it, setup-go
+      # reuses whatever patch release the image happens to have cached, so a Go security release
+      # leaves `vuln` red against a standard library that was fixed days ago, and the release job
+      # would build with the same superseded toolchain.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go-version }}
+          check-latest: true
           cache: true
 
       - name: Download modules
@@ -43,9 +61,9 @@ jobs:
       # running them three times only triples the chance of a flake blocking a merge.
       - name: Lint (golangci-lint — complexity, docs, SOLID smells, staticcheck)
         if: matrix.os == 'ubuntu-latest'
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.1.6
+          version: v2.12.2
 
       - name: Format check (gofumpt)
         if: matrix.os == 'ubuntu-latest'
@@ -80,18 +98,148 @@ jobs:
   dry:
     # Language-agnostic duplication (DRY) gate — identical across every mailkube repo.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "20"
       - name: Copy-paste detection (jscpd)
         run: npx --yes jscpd@4 --config .jscpd.json .
 
-  docs:
-    # Governance gate: every .rules/*.md must be indexed in AGENTS.md.
+  surface:
+    # Parity gate: the CLI's coverage of the published surface, checked against the SDK's own
+    # source rather than against a list copied into this repository.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.25"
+          check-latest: true
+          cache: true
+      - name: Surface parity
+        run: ./scripts/check-surface.sh
+
+  docs:
+    # Governance gates: what the repository says about itself has to still be true.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Rule-index sync check
         run: ./scripts/check-rule-index.sh
+      # The version has one source, and this is what keeps it that way. An enforcement script
+      # wired to no job is a comment, so it runs here rather than in a nightly nobody watches.
+      - name: No version literal in source
+        run: ./scripts/check-no-version-literal.sh
+
+  shell:
+    # The installers are the only code in this repository that runs on a stranger's machine, with
+    # permission to write to a directory on their PATH, before they have any reason to trust it.
+    # Two files, and they get their own gate for that reason alone.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.25"
+          check-latest: true
+          cache: true
+
+      # Every shell script, not only the installer: the release pipeline runs the ones under
+      # scripts/ too, and a quoting bug there fails a release rather than a pull request.
+      - name: Lint shell (shellcheck)
+        run: shellcheck install.sh scripts/*.sh
+
+      - name: Format check (shfmt)
+        run: |
+          go install mvdan.cc/sh/v3/cmd/shfmt@v3.13.1
+          shfmt -d install.sh scripts/*.sh
+
+      # Findings at Warning and above fail. PowerShell's own analyzer catches the class of
+      # mistake that matters here: a parameter that is never used, a variable that is never
+      # assigned, an alias that is not available on the version the script declares it supports.
+      - name: Lint PowerShell (PSScriptAnalyzer)
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          $findings = Invoke-ScriptAnalyzer -Path ./install.ps1 -Severity Error,Warning
+          if ($findings) {
+            $findings | Format-Table -AutoSize
+            exit 1
+          }
+          Write-Output 'PSScriptAnalyzer: no findings.'
+
+  vuln:
+    # Reachability-based, so it reports vulnerabilities in code this binary actually calls rather
+    # than in every package the module graph mentions. That is what makes it usable as a gate.
+    #
+    # Most findings here will be in the standard library rather than in a dependency, because the
+    # dependency list is short and the standard library is most of what this program calls. The
+    # fix for one of those is a newer Go patch release, not a change to this repository: with
+    # check-latest set, a red run means the release exists and the runner has not been offered it
+    # yet, and it goes green on its own within about a day. Do not silence it, and do not pin
+    # around it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.25"
+          check-latest: true
+          cache: true
+      - name: Vulnerability scan (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          govulncheck ./...
+
+  release-config:
+    # The release configuration is checked on every pull request, not first exercised on the day
+    # a release is cut. A build that only ever runs at release time is a build nobody has run.
+    #
+    # NOT one of the required checks. The required set is deliberately small, and this job is the
+    # newest of them; whether it earns a place there is a decision for when branch protection is
+    # configured, once its failure rate is something observed rather than assumed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the version comes from the tag history
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.25"
+          check-latest: true
+          cache: true
+
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: "~> v2"
+          args: check
+
+      # A snapshot exercises the builds, the archives, the packages and both channel manifests
+      # without publishing anything. Signing, images and SBOMs need credentials or a registry, so
+      # they are skipped here and covered by the release run itself.
+      - name: Snapshot build
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish,docker,sign,sbom,announce
+
+      # The completions in the archive are generated, so the check that matters is that the
+      # generator left the tracked tree alone. If it did not, every release binary would report a
+      # version marked dirty, and the first person to notice would be a user reading `version`.
+      - name: The build must leave the checkout clean
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "The release build modified tracked files:"
+            git status --porcelain
+            exit 1
+          fi

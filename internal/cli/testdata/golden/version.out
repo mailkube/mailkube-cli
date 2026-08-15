@@ -1,0 +1,3 @@
+mailkube dev
+  sdk  mailkube-go unknown
+  go   go1.0.0

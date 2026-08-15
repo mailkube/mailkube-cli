@@ -1,0 +1,6 @@
+✗ contacts is managed in the dashboard, not from the command line.
+
+    Contacts, segments and topics:
+    https://app.mailkube.com/domain/audience
+
+  The CLI covers sending, scheduled sends and the local webhook loop.

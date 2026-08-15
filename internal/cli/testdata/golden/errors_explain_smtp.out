@@ -1,0 +1,8 @@
+535 5.7.8  ·  SMTP reply  ·  not retryable
+
+  The username or password was rejected.
+
+  Check  The username is localpart@verified-domain, not a bare name.
+  Check  The password is the SMTP credential from the dashboard, not your API
+         key.
+  Fix    https://app.mailkube.com/domain/credentials#smtp

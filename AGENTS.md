@@ -18,6 +18,7 @@ from `.rules/` based on the task.
 | `.rules/VOICE.md` | Writing anything a user or contributor reads: help text, error messages, README, docs, comments, commit and PR text. |
 | `.rules/SOLID_DRY_KISS.md` | Writing or changing any code — the enforced engineering standards (SOLID, DRY, KISS, coverage, docs) and how to run each gate locally. |
 | `.rules/RELEASE.md` | Touching `release.yml`, `.releaserc.json`, versioning, or the module's public tags. |
+| `.rules/DISTRIBUTION.md` | Touching `.goreleaser.yaml`, the install scripts, the `Dockerfile`, or any publish/verify workflow: the channels, the per-channel publish split, the clean-checkout rule the version depends on, and what the installers must never stop doing. |
 
 ## Key Conventions (always apply)
 

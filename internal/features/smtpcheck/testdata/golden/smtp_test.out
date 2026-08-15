@@ -1,0 +1,7 @@
+✓ TCP          connected
+✓ EHLO         STARTTLS PIPELINING 8BITMIME SIZE=20971520 AUTH=PLAIN
+✓ STARTTLS     TLS 1.3, TLS_AES_256_GCM_SHA384
+✓ Certificate  valid for smtp.mailkube.com, issued by Example CA, expires 2026-11-02 (80 days)
+
+Connectivity is fine. No credential was sent.
+Add --auth to test one. Sign-in is rate-limited, so do not run it in a loop.

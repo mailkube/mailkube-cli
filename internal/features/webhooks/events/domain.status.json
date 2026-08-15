@@ -1,0 +1,13 @@
+{
+  "type": "domain.status",
+  "created_at": "2026-08-15T14:02:40Z",
+  "data": {
+    "domain": "acme.example",
+    "status": "verified",
+    "onboarding_state": "complete",
+    "previous": {
+      "status": "pending",
+      "onboarding_state": "dns_pending"
+    }
+  }
+}

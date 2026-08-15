@@ -1,0 +1,9 @@
+quota_exceeded  ·  HTTP 422  ·  not retryable
+
+  Your organisation's message quota for the current period is exhausted.
+
+  Fix    Upgrade the plan, or wait for the period to reset.
+
+  Note   Suppressed recipients still consume quota: a suppressed address is
+         accepted, charged and dropped, visible only as an email.suppressed
+         webhook event.

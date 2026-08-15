@@ -1,0 +1,30 @@
+mailkube dev — the Mailkube CLI
+
+  Send mail, manage scheduled sends, and receive webhooks from your terminal.
+
+USAGE
+  mailkube <command> [flags]
+
+SEND
+  emails send        Send an email
+  scheduled-emails   List, reschedule and cancel scheduled sends
+
+DEVELOP
+  webhooks listen    Receive webhook events on your machine
+  webhooks simulate  Send a test event to a local endpoint
+  webhooks verify    Verify a webhook signature offline
+  smtp test          Test SMTP connectivity and credentials
+
+SETUP
+  init               Guided first-time setup
+  auth login         Store credentials
+  config             Manage profiles and settings
+  dashboard          Show what is managed in the dashboard, and where
+  doctor             Diagnose your environment
+  errors explain     Explain a Mailkube error code
+  skill              Install the agent skill for coding assistants
+  topic              Long-form help topics — run `mailkube topic` to list them
+  version            Show the CLI and SDK versions
+
+  Run `mailkube <command> --help` for details.
+  Docs: https://docs.mailkube.com/cli

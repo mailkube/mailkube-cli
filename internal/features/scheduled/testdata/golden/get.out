@@ -1,0 +1,8 @@
+  id            3a1f9c2d-7d8e-4a11-9c2f-8e5b1d0a3c77
+  status        scheduled
+  scheduled-at  2026-08-14 09:32 UTC   (in 2 hours)
+  subject       Reminder
+  recipients    alice@example.com
+  message-id    <3a1f9c2d-7d8e-4a11-9c2f-8e5b1d0a3c77@msg.mailkube.com>
+  topic         reminders
+  tags          campaign=launch, beta

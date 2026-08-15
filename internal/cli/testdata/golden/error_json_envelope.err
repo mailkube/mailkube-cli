@@ -1,0 +1,5 @@
+{
+  "error": {
+    "message": "no explanation for \"nonesuch\".\nRun `mailkube errors explain --list` to see every name and code."
+  }
+}

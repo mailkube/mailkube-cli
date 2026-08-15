@@ -1,0 +1,2 @@
+✗ --status sent has no results by design: a dispatched message leaves this collection.
+  Delivery outcomes arrive as webhook events. See `mailkube topic webhooks`.
