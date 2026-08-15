@@ -17,6 +17,8 @@ jobs:
   ci-gate:
     # Release only proceeds if the full gated CI is green. Nothing downstream re-runs the tests,
     # so this is the only thing standing between a red build and a published binary.
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci.yml
 
   tag:
@@ -70,6 +72,16 @@ jobs:
     # cut. Publishing is keyed on a tag existing, never on the workflow having run.
     needs: tag
     if: needs.tag.outputs.tag != ''
+    # A called workflow cannot hold more than the job that calls it, so these are granted here
+    # even though publish.yml declares them again on its own jobs. This is not the same rule as
+    # for an ordinary job, where a job-level block raises the workflow default freely: a caller
+    # is a ceiling, and a callee asking for more than its ceiling does not fail at that step. It
+    # fails before any job starts, with no log to read.
+    permissions:
+      contents: write # append artifacts to the release
+      packages: write # push images
+      id-token: write # keyless signing, and the provenance attestation
+      attestations: write
     uses: ./.github/workflows/publish.yml
     with:
       tag: ${{ needs.tag.outputs.tag }}
@@ -81,6 +93,9 @@ jobs:
     # exist. A failure here means a channel needs re-running, not that the release is void.
     needs: [tag, publish]
     if: needs.tag.outputs.tag != ''
+    # Reads the published release the way a user does, over anonymous HTTP, so it needs nothing.
+    permissions:
+      contents: read
     uses: ./.github/workflows/verify-release.yml
     with:
       tag: ${{ needs.tag.outputs.tag }}
