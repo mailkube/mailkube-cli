@@ -32,7 +32,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mailkube/mailkube-cli/internal/kernel/buildinfo"
 	"github.com/mailkube/mailkube-cli/internal/kernel/clientfactory"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 	"github.com/mailkube/mailkube-cli/internal/kernel/ports"
@@ -128,7 +127,7 @@ func (f *Feature) Run(ctx context.Context, deps *feature.Deps, offline bool) (Re
 	}
 
 	view := ReportView{}
-	view.add("CLI", f.checkVersions())
+	view.add("CLI", f.checkVersions(deps))
 	view.add("Config", f.checkConfig(deps))
 	view.add("API key", checkAPIKey(r))
 	view.add("SMTP", checkSMTP(r))
@@ -148,8 +147,8 @@ func (f *Feature) Run(ctx context.Context, deps *feature.Deps, offline bool) (Re
 }
 
 // checkVersions reports what this binary is.
-func (f *Feature) checkVersions() feature.Finding {
-	info := buildinfo.Read()
+func (f *Feature) checkVersions(deps *feature.Deps) feature.Finding {
+	info := deps.Build
 	return ok(info.Version + "  (sdk mailkube-go " + info.SDKVersion + ")")
 }
 

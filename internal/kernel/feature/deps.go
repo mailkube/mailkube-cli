@@ -37,6 +37,14 @@ type Deps struct {
 	Globals *settings.Globals
 	// Store owns the config file.
 	Store *configstore.Store
+	// Build is what this binary reports about itself: its version, the SDK it was built
+	// against, and the toolchain that built it.
+	//
+	// Injected rather than read at each call site, because one of those three answers depends
+	// on the machine doing the building. A screen that prints it would otherwise render
+	// differently on a contributor's laptop than in CI, and the golden file recording that
+	// screen would fail for a reason that has nothing to do with the change under review.
+	Build buildinfo.Info
 
 	// config caches the parsed file, so a command reading settings twice does not read the
 	// file twice and cannot observe it changing underneath itself mid-command.
@@ -60,6 +68,9 @@ func (d *Deps) Prepare() error {
 	}
 	if d.Clock == nil {
 		d.Clock = clock.System{}
+	}
+	if d.Build == (buildinfo.Info{}) {
+		d.Build = buildinfo.Read()
 	}
 
 	if d.Globals.NoColor {
@@ -140,7 +151,7 @@ func (d *Deps) Factory(r settings.Resolved) *clientfactory.Factory {
 		Timeout: duration(r.Timeout.Value),
 		// The outgoing User-Agent names this tool as well as the SDK, so a request from the
 		// CLI is distinguishable from one made by a program that embeds the same library.
-		UserAgentSuffix: "mailkube-cli/" + buildinfo.Read().Version,
+		UserAgentSuffix: "mailkube-cli/" + d.Build.Version,
 		Verbosity:       d.Globals.Verbosity,
 		LogTo:           d.IO.ErrOut,
 	})

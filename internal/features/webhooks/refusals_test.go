@@ -1,6 +1,7 @@
 package webhooks_test
 
 import (
+	"context"
 	"io"
 	"net"
 	"strings"
@@ -26,7 +27,7 @@ func refuse(t *testing.T, opts testsupport.TestOptions, args ...string) (errs.Co
 	deps, out, errOut := testsupport.TestDeps(t, opts)
 
 	f := webhooks.New()
-	f.Bind = func(address string) (net.Listener, error) {
+	f.Bind = func(_ context.Context, address string) (net.Listener, error) {
 		t.Errorf("a refused run opened a socket on %s", address)
 		return nil, nil
 	}
@@ -177,7 +178,7 @@ func TestABindFailureNamesThePortAndTheFlagThatChangesIt(t *testing.T) {
 	deps, _, _ := testsupport.TestDeps(t, running())
 
 	f := webhooks.New()
-	f.Bind = func(address string) (net.Listener, error) {
+	f.Bind = func(_ context.Context, _ string) (net.Listener, error) {
 		return nil, &net.OpError{Op: "listen", Net: "tcp4", Err: errAddressInUse{}}
 	}
 
@@ -216,7 +217,7 @@ func TestTheManagementVerbsPointAtThePageThatOwnsThem(t *testing.T) {
 
 			deps, _, _ := testsupport.TestDeps(t, running())
 			f := webhooks.New()
-			f.Bind = func(address string) (net.Listener, error) {
+			f.Bind = func(_ context.Context, address string) (net.Listener, error) {
 				t.Errorf("a referral opened a socket on %s", address)
 				return nil, nil
 			}

@@ -52,7 +52,7 @@ func (f *Feature) run(ctx context.Context, deps *feature.Deps, o *options) error
 	// address are both deliberate: "localhost" also resolves to ::1, and a listener that
 	// answered on one family while the tunnel connected to the other looks like a delivery
 	// that never arrives.
-	socket, err := f.bind(cfg.address)
+	socket, err := f.bind(ctx, cfg.address)
 	if err != nil {
 		return errs.Configf("cannot listen on %s: %s.\nPass --port to use another.", cfg.address, bindReason(err))
 	}
@@ -84,11 +84,16 @@ func loopback(host string) bool {
 }
 
 // bind opens the socket, real unless a test substituted one.
-func (f *Feature) bind(address string) (net.Listener, error) {
+//
+// tcp4 explicitly, and through a ListenConfig so the bind honours cancellation: a listener that
+// could not be interrupted while opening its socket would be the one part of this command that
+// ignores Ctrl-C.
+func (f *Feature) bind(ctx context.Context, address string) (net.Listener, error) {
 	if f.Bind != nil {
-		return f.Bind(address)
+		return f.Bind(ctx, address)
 	}
-	return net.Listen("tcp4", address)
+	var lc net.ListenConfig
+	return lc.Listen(ctx, "tcp4", address)
 }
 
 // bindReason reduces a listen failure to the part a user can act on.

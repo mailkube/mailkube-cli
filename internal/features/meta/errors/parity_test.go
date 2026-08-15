@@ -114,7 +114,7 @@ func constValues(t *testing.T, decl *ast.GenDecl) []string {
 func moduleDir(t *testing.T) string {
 	t.Helper()
 
-	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", sdkModule).Output()
+	out, err := exec.CommandContext(t.Context(), "go", "list", "-m", "-f", "{{.Dir}}", sdkModule).Output()
 	if err != nil {
 		t.Fatalf("locating %s: %v", sdkModule, err)
 	}

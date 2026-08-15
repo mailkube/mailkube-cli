@@ -9,7 +9,7 @@ Please also read our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Development setup
 
-Requires the [Go toolchain](https://go.dev/dl/) (1.24+),
+Requires the [Go toolchain](https://go.dev/dl/) (1.25+),
 [golangci-lint](https://golangci-lint.run/) (v2), [gofumpt](https://github.com/mvdan/gofumpt),
 and Node.js (for the `jscpd` duplication check).
 

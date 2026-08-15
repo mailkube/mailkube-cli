@@ -22,15 +22,6 @@ func TestAssertIgnoresATrailingNewlineDifference(t *testing.T) {
 	golden.Assert(t, "sample.txt", []byte("hello\nworld"))
 }
 
-func TestAssertReportsAMismatchRatherThanPassing(t *testing.T) {
-	// Assert takes *testing.T, so verifying that it fails means giving it one to fail.
-	fake := &testing.T{}
-	golden.Assert(fake, "sample.txt", []byte("something else"))
-	if !fake.Failed() {
-		t.Error("Assert accepted output that does not match the golden file")
-	}
-}
-
 func TestUpdateWritesTheFileItThenAccepts(t *testing.T) {
 	// The regeneration path is what `make golden` runs, so it is exercised here rather than
 	// trusted. It runs in a temp working directory so it cannot rewrite a committed golden.

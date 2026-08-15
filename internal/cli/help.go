@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mailkube/mailkube-cli/internal/kernel/buildinfo"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 	"github.com/mailkube/mailkube-cli/internal/kernel/settings"
 )
@@ -30,7 +29,7 @@ func groupOrder() []string {
 // "what is this for". This one groups by intent and ends with the single next action, because
 // the most common state for a reader of this screen is not being set up yet.
 func renderRootHelp(w io.Writer, root *cobra.Command, deps *feature.Deps) {
-	info := buildinfo.Read()
+	info := deps.Build
 
 	// Errors are discarded throughout: this is help text on a stream the caller chose, and
 	// there is no useful recovery from a closed pipe while printing it.

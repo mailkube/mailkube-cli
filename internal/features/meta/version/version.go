@@ -8,7 +8,6 @@ package version
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/mailkube/mailkube-cli/internal/kernel/buildinfo"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 	"github.com/mailkube/mailkube-cli/internal/kernel/output"
 )
@@ -43,7 +42,7 @@ func (f *Feature) Command(deps *feature.Deps) *cobra.Command {
 			if asJSON {
 				deps.Format = output.JSON
 			}
-			return deps.Emit(f.report())
+			return deps.Emit(f.report(deps))
 		},
 	}
 	// A spelling of -o json that reads naturally on this one command. It sets the same
@@ -57,8 +56,8 @@ func (f *Feature) Command(deps *feature.Deps) *cobra.Command {
 // There is no update check here and none anywhere else by default. A tool that contacts a
 // release server every time it runs is a privacy problem and breaks in an air-gapped CI
 // environment, so checking is something a user asks for, never something that happens to them.
-func (*Feature) report() View {
-	info := buildinfo.Read()
+func (*Feature) report(deps *feature.Deps) View {
+	info := deps.Build
 	return View{Version: info.Version, SDKVersion: info.SDKVersion, GoVersion: info.GoVersion}
 }
 

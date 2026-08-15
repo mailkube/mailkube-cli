@@ -54,8 +54,9 @@ func start(t *testing.T, opts testsupport.TestOptions, args ...string) *listener
 
 	bound := make(chan string, 1)
 	f := webhooks.New()
-	f.Bind = func(string) (net.Listener, error) {
-		socket, err := net.Listen("tcp4", "127.0.0.1:0")
+	f.Bind = func(ctx context.Context, _ string) (net.Listener, error) {
+		var lc net.ListenConfig
+		socket, err := lc.Listen(ctx, "tcp4", "127.0.0.1:0")
 		if err != nil {
 			return nil, err
 		}

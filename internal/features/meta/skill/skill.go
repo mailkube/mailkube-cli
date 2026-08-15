@@ -21,7 +21,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mailkube/mailkube-cli/internal/kernel/buildinfo"
 	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 	"github.com/mailkube/mailkube-cli/internal/kernel/output"
@@ -118,7 +117,7 @@ func (f *Feature) install(deps *feature.Deps, dir string, force bool) (InstallVi
 		return InstallView{}, err
 	}
 
-	view := InstallView{Dir: target, Version: buildinfo.Read().Version}
+	view := InstallView{Dir: target, Version: deps.Build.Version}
 	var conflicts []string
 
 	for _, name := range files {

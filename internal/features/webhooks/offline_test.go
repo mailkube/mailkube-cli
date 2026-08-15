@@ -1,6 +1,7 @@
 package webhooks_test
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/http"
@@ -32,7 +33,7 @@ func invoke(t *testing.T, opts testsupport.TestOptions, args ...string) (errs.Co
 	deps, out, errOut := testsupport.TestDeps(t, opts)
 
 	f := webhooks.New()
-	f.Bind = func(address string) (net.Listener, error) {
+	f.Bind = func(_ context.Context, address string) (net.Listener, error) {
 		t.Errorf("an offline command opened a socket on %s", address)
 		return nil, nil
 	}

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mailkube/mailkube-cli/internal/kernel/buildinfo"
 	"github.com/mailkube/mailkube-cli/internal/kernel/clock"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 	"github.com/mailkube/mailkube-cli/internal/kernel/output"
@@ -37,6 +38,21 @@ type TestOptions struct {
 	ConfigPath string
 	// Globals are the parsed global flags, as if they had come from the command line.
 	Globals *settings.Globals
+	// Build overrides what the binary reports about itself. The zero value is the fixed set
+	// below, which is what every golden file is rendered against.
+	Build *buildinfo.Info
+}
+
+// testBuild is the build information golden files are rendered against.
+//
+// Pinned for the same reason the terminal width is. Two of these three values are already stable
+// in a test binary, but the toolchain version is whatever compiled it, so a screen that printed
+// the real one would produce a different golden on every machine and a diff nobody chose.
+func testBuild(override *buildinfo.Info) buildinfo.Info {
+	if override != nil {
+		return *override
+	}
+	return buildinfo.Info{Version: "dev", SDKVersion: "unknown", GoVersion: "go1.0.0"}
 }
 
 // TestDeps builds dependencies over buffers and a temporary config file, and prepares them.
@@ -72,6 +88,7 @@ func TestDeps(t testing.TB, opts TestOptions) (deps *feature.Deps, out, errOut *
 		Clock:   clock.Testing(),
 		Env:     output.MapEnv(opts.Env),
 		Globals: globals,
+		Build:   testBuild(opts.Build),
 	}
 	if err := deps.Prepare(); err != nil {
 		t.Fatalf("preparing test dependencies: %v", err)

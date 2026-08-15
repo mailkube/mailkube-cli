@@ -13,6 +13,7 @@
 package webhooks
 
 import (
+	"context"
 	"net"
 	"time"
 
@@ -54,7 +55,7 @@ const (
 // machine is taken on another, which is how a listener test becomes the flaky one nobody trusts.
 // Substituting the bind lets a test listen on whatever the operating system offers and still
 // exercise the real server, the real handshake and a real HTTP request.
-type Bind func(address string) (net.Listener, error)
+type Bind func(ctx context.Context, address string) (net.Listener, error)
 
 // Feature receives webhook events on this machine.
 type Feature struct {

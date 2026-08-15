@@ -89,7 +89,7 @@ The committed `go.mod` must resolve the SDK from the module proxy, or
 To work against an unreleased SDK, use a **gitignored `go.work`**:
 
 ```
-go 1.24
+go 1.25
 
 use (
 	.

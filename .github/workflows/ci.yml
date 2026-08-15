@@ -30,10 +30,17 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        # Go 1.24 only, deliberately. The version story reads the module version out of the
-        # build info the toolchain stamps from the VCS tag, which needs 1.24; a 1.23 row would
-        # produce a binary reporting a different version than the one it ships as.
-        go-version: ["1.24"]
+        # One Go version, deliberately, and it is the module's own floor rather than a range.
+        # Two reasons, and only the second is about this repository:
+        #
+        #   - the version story reads the module version out of the build info the toolchain
+        #     stamps from the VCS tag, so anything below the floor would produce a binary
+        #     reporting a different version than the one it ships as;
+        #   - `vuln` reports the standard library the build actually uses, so a row on a release
+        #     that no longer receives security fixes turns a real gate into a permanent failure.
+        #
+        # Raise this together with the `go` directive in go.mod, never separately.
+        go-version: ["1.25"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -51,7 +58,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.1.6
+          version: v2.12.2
 
       - name: Format check (gofumpt)
         if: matrix.os == 'ubuntu-latest'
@@ -104,7 +111,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           cache: true
       - name: Surface parity
         run: ./scripts/check-surface.sh
@@ -133,7 +140,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           cache: true
 
       # Every shell script, not only the installer: the release pipeline runs the ones under
@@ -170,7 +177,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           cache: true
       - name: Vulnerability scan (govulncheck)
         run: |
@@ -193,7 +200,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           cache: true
 
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3

@@ -2,6 +2,7 @@ package smtp_test
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -52,7 +53,8 @@ func newFakeServer(t *testing.T, server *fakeServer) (*fakeServer, string, int, 
 	cert, pool := selfSigned(t)
 	server.tlsConf = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
 
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listening: %v", err)
 	}
@@ -108,7 +110,9 @@ func (s *fakeServer) handle(conn net.Conn) {
 			}
 			write("220 2.0.0 Ready to start TLS")
 			secure := tls.Server(conn, s.tlsConf)
-			if err := secure.Handshake(); err != nil {
+			// This connection outlives the request that started it, and the fake has no
+			// deadline of its own to impose, so the handshake is bounded by the socket.
+			if err := secure.HandshakeContext(context.Background()); err != nil {
 				return
 			}
 			conn = secure

@@ -4,7 +4,7 @@
 # nobody has to reverse-engineer the workflow YAML to reproduce a failure locally.
 
 GOFUMPT_VERSION    ?= v0.7.0
-GOLANGCI_VERSION   ?= v2.1.6
+GOLANGCI_VERSION   ?= v2.12.2
 SHFMT_VERSION      ?= v3.13.1
 GORELEASER_VERSION ?= v2.17.1
 
