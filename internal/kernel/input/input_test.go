@@ -344,3 +344,35 @@ func TestPairFlagSatisfiesPflag(t *testing.T) {
 		t.Errorf("String() = %q, want %q", got, want)
 	}
 }
+
+func TestParseAtRefusesATimeThatHasAlreadyPassed(t *testing.T) {
+	t.Parallel()
+
+	// The relative form has always refused a non-positive offset. An absolute one in the past is
+	// the same mistake in a different spelling, and accepting it would send a scheduled message
+	// the server can only reject — after the round trip. The pathological case is
+	// "0001-01-01 0:00+00:00", which parses to the zero time, and the zero time is what every
+	// other part of this program reads as "no time given".
+	now := time.Date(2026, time.August, 14, 7, 32, 0, 0, time.UTC)
+
+	for _, value := range []string{
+		"2020-01-01T00:00:00Z",
+		"0001-01-01 0:00+00:00",
+		"2026-08-14T07:32:00Z", // now itself: a schedule for this instant is not a schedule
+	} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+
+			at, err := input.ParseAt(value, now)
+			if err == nil {
+				t.Fatalf("ParseAt(%q) accepted a time that is not in the future: %s", value, at)
+			}
+			if !strings.Contains(err.Error(), "not in the future") {
+				t.Errorf("message = %q, want it to say why", err)
+			}
+			if errs.CodeFor(err) != errs.CodeValidation {
+				t.Errorf("exit code = %d, want %d", errs.CodeFor(err), errs.CodeValidation)
+			}
+		})
+	}
+}

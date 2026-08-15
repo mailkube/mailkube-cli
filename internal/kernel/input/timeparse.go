@@ -43,9 +43,18 @@ func ParseAt(value string, now time.Time) (time.Time, error) {
 	}
 
 	for _, layout := range absoluteLayouts() {
-		if at, err := time.Parse(layout, value); err == nil {
-			return at, nil
+		at, err := time.Parse(layout, value)
+		if err != nil {
+			continue
 		}
+		// The same rule the relative form already applies. Without it the two spellings
+		// disagree: "+0s" is refused while a date in the past is accepted and sent, and a
+		// value like "0001-01-01 0:00+00:00" parses to the zero time, which every other part
+		// of this program reads as "unset" rather than as a moment.
+		if !at.After(now) {
+			return time.Time{}, errs.Validationf("%q is not in the future", value)
+		}
+		return at, nil
 	}
 	return time.Time{}, unparseable(value)
 }

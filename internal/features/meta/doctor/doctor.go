@@ -10,6 +10,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -17,7 +18,9 @@ import (
 	"github.com/mailkube/mailkube-cli/internal/kernel/buildinfo"
 	"github.com/mailkube/mailkube-cli/internal/kernel/clientfactory"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
+	"github.com/mailkube/mailkube-cli/internal/kernel/ports"
 	"github.com/mailkube/mailkube-cli/internal/kernel/settings"
+	mksmtp "github.com/mailkube/mailkube-cli/internal/kernel/smtp"
 )
 
 // probeTimeout bounds the one network check, so a firewall that blackholes the connection costs
@@ -39,10 +42,20 @@ type Reachability struct {
 	ServerTime time.Time
 }
 
+// Submit opens a submission session for the connectivity probe. The seam a test substitutes.
+//
+// It is the same shape the SMTP transport uses, and it is deliberately the *unauthenticated*
+// probe: this report must stay cheap enough to run in a loop, and a sign-in attempt per run is
+// not that. What it answers is the half a user cannot check any other way — that the submission
+// port is reachable from here at all, which is the question a corporate network usually decides.
+type Submit func(ctx context.Context, config mksmtp.Config) (ports.SMTPSubmitter, error)
+
 // Feature reports on the environment.
 type Feature struct {
 	// Reach probes the API. Nil means the real one.
 	Reach Reach
+	// Submit opens a submission connection. Nil means the real one.
+	Submit Submit
 }
 
 // New returns the doctor feature.
@@ -98,7 +111,14 @@ func (f *Feature) Run(ctx context.Context, deps *feature.Deps, offline bool) (Re
 	if !offline {
 		view.add("API", f.checkReachable(ctx, deps, r))
 		view.add("Clock skew", f.checkSkew(ctx, deps, r))
+		// Only when there is a submission host to probe. An API-only user has no SMTP
+		// endpoint, and a row reporting that would be a second warning about the same
+		// absence the SMTP row already states.
+		if finding, checked := f.checkSubmission(ctx, r); checked {
+			view.add("Submission", finding)
+		}
 	}
+	view.add("Proxy", checkProxy(deps))
 	view.add("Terminal", checkTerminal(deps))
 	return view, nil
 }
@@ -213,6 +233,85 @@ func httpReach(ctx context.Context, baseURL string, now func() time.Time) (Reach
 		got.ServerTime = date
 	}
 	return got, nil
+}
+
+// checkSubmission reports whether the configured submission endpoint answers.
+//
+// It reports whether the row applies at all, so a user who never sends over SMTP is not shown a
+// finding about a host they have not configured. Nothing is authenticated and nothing is
+// submitted: the connection is opened, the capabilities are read, and it is closed again.
+func (f *Feature) checkSubmission(ctx context.Context, r settings.Resolved) (feature.Finding, bool) {
+	if !r.SMTPHost.Set() {
+		return feature.Finding{}, false
+	}
+
+	config, err := submissionConfig(r)
+	if err != nil {
+		return fail(err.Error()), true
+	}
+
+	session, err := f.submit(ctx, config)
+	if err != nil {
+		return fail(config.Address() + " — " + err.Error()), true
+	}
+	defer session.Close()
+
+	return ok(config.Address() + " reachable, " + describe(config, session.Capabilities()) +
+		"  (no credentials sent)"), true
+}
+
+// submissionConfig turns the resolved settings into something dialable.
+func submissionConfig(r settings.Resolved) (mksmtp.Config, error) {
+	port, err := mksmtp.ParsePort(r.SMTPPort.Value)
+	if err != nil {
+		return mksmtp.Config{}, err
+	}
+	mode, err := mksmtp.ParseTLSMode(r.SMTPTLS.Value)
+	if err != nil {
+		return mksmtp.Config{}, err
+	}
+	return mksmtp.Config{
+		Host: r.SMTPHost.Value, Port: port, TLS: mode, Timeout: probeTimeout,
+	}, nil
+}
+
+// describe summarises an encrypted submission channel in one clause.
+func describe(config mksmtp.Config, caps mksmtp.Capabilities) string {
+	encryption := "TLS"
+	if config.TLS == mksmtp.STARTTLS {
+		encryption = "STARTTLS"
+	}
+	if caps.TLSVersion != "" {
+		encryption += " " + caps.TLSVersion
+	}
+	return encryption
+}
+
+// submit opens the submission connection through the seam, or through the real client.
+func (f *Feature) submit(ctx context.Context, config mksmtp.Config) (ports.SMTPSubmitter, error) {
+	if f.Submit != nil {
+		return f.Submit(ctx, config)
+	}
+	return mksmtp.Connect(ctx, config)
+}
+
+// checkProxy reports the environment that decides whether requests leave this machine at all.
+//
+// It is here because "it works at home and not at the office" is otherwise unanswerable, and
+// because the two transports do not behave alike: Go's HTTP transport honours these variables and
+// SMTP does not go through an HTTP proxy at all, which is worth saying before someone spends an
+// afternoon on it.
+func checkProxy(deps *feature.Deps) feature.Finding {
+	var set []string
+	for _, key := range []string{"HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy", "SSL_CERT_FILE", "SSL_CERT_DIR"} {
+		if value, found := deps.Env(key); found && strings.TrimSpace(value) != "" {
+			set = append(set, key+"="+value)
+		}
+	}
+	if len(set) == 0 {
+		return ok("no proxy or custom CA configured")
+	}
+	return ok(strings.Join(set, ", ") + "  (SMTP submission does not use an HTTP proxy)")
 }
 
 // checkTerminal reports what the CLI concluded about the terminal, which is otherwise invisible

@@ -11,8 +11,12 @@ import (
 
 	"github.com/mailkube/mailkube-cli/internal/features/meta/doctor"
 	"github.com/mailkube/mailkube-cli/internal/kernel/clock"
+	"github.com/mailkube/mailkube-cli/internal/kernel/configstore"
+	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 	"github.com/mailkube/mailkube-cli/internal/kernel/output"
+	"github.com/mailkube/mailkube-cli/internal/kernel/ports"
 	"github.com/mailkube/mailkube-cli/internal/kernel/settings"
+	mksmtp "github.com/mailkube/mailkube-cli/internal/kernel/smtp"
 	"github.com/mailkube/mailkube-cli/internal/kernel/testsupport"
 )
 
@@ -248,3 +252,192 @@ func TestTheRealProbeReadsLatencyAndTheServersClock(t *testing.T) {
 		t.Errorf("skew was not measured from the Date header: %q", got)
 	}
 }
+
+// withSubmissionHost writes a profile carrying a submission endpoint, which is the only way this
+// report learns of one: doctor takes no flags of its own, so the host comes from configuration.
+func withSubmissionHost(t *testing.T, deps *feature.Deps, host string) {
+	t.Helper()
+
+	err := deps.Store.Update(func(c *configstore.Config) error {
+		c.Profiles = map[string]configstore.Profile{
+			settings.DefaultProfile: {SMTP: &configstore.SMTP{
+				Username: "app01@acme.com", Host: host,
+			}},
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("writing the test profile: %v", err)
+	}
+}
+
+func TestSubmissionIsNotReportedWhenThereIsNoHostToProbe(t *testing.T) {
+	t.Parallel()
+
+	// An API-only user has no submission endpoint, and a row about a host they never configured
+	// would be a second warning about the absence the SMTP row already states.
+	probed := false
+	f := doctor.New()
+	f.Submit = func(context.Context, mksmtp.Config) (ports.SMTPSubmitter, error) {
+		probed = true
+		return &fakeSession{}, nil
+	}
+
+	deps, _, _ := testsupport.TestDeps(t, testsupport.TestOptions{})
+	f.Reach = reaching(doctor.Reachability{Latency: time.Millisecond})
+
+	view, err := f.Run(context.Background(), deps, false)
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if probed {
+		t.Error("a submission connection was opened with no host configured")
+	}
+	for _, c := range view.Checks {
+		if c.Label == "Submission" {
+			t.Errorf("the report carries a submission row with nothing to probe: %q", c.Detail)
+		}
+	}
+}
+
+func TestSubmissionIsProbedWithoutACredential(t *testing.T) {
+	t.Parallel()
+
+	var used mksmtp.Config
+	session := &fakeSession{caps: mksmtp.Capabilities{StartTLS: true, TLSVersion: "TLS 1.3"}}
+
+	f := doctor.New()
+	f.Reach = reaching(doctor.Reachability{Latency: time.Millisecond})
+	f.Submit = func(_ context.Context, config mksmtp.Config) (ports.SMTPSubmitter, error) {
+		used = config
+		return session, nil
+	}
+
+	deps, _, _ := testsupport.TestDeps(t, testsupport.TestOptions{
+		Env: map[string]string{settings.EnvSMTPPassword: "secret"},
+	})
+	withSubmissionHost(t, deps, "smtp.mailkube.com")
+
+	view, err := f.Run(context.Background(), deps, false)
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+
+	// A diagnostic people run in a loop must not sign in on every run, and a password being
+	// available is not a reason to use it: what this row answers is whether the port is
+	// reachable from here, which is the half a corporate network usually decides.
+	if used.Username != "" || used.Password != "" {
+		t.Errorf("the probe carried a credential: %+v", used)
+	}
+	submission := find(t, view, "Submission")
+	if submission.Status != "ok" {
+		t.Errorf("submission status = %q, want ok", submission.Status)
+	}
+	for _, want := range []string{"smtp.mailkube.com:587", "STARTTLS TLS 1.3", "no credentials sent"} {
+		if !strings.Contains(submission.Detail, want) {
+			t.Errorf("submission detail = %q, want it to name %q", submission.Detail, want)
+		}
+	}
+	if !session.closed {
+		t.Error("the probe left the session open")
+	}
+}
+
+func TestAnUnreachableSubmissionPortFailsItsOwnRowOnly(t *testing.T) {
+	t.Parallel()
+
+	f := doctor.New()
+	f.Reach = reaching(doctor.Reachability{Latency: time.Millisecond})
+	f.Submit = func(context.Context, mksmtp.Config) (ports.SMTPSubmitter, error) {
+		return nil, errors.New("dial tcp: i/o timeout")
+	}
+
+	deps, _, _ := testsupport.TestDeps(t, testsupport.TestOptions{})
+	withSubmissionHost(t, deps, "smtp.mailkube.com")
+
+	view, err := f.Run(context.Background(), deps, false)
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+
+	submission := find(t, view, "Submission")
+	if submission.Status != "fail" {
+		t.Errorf("submission status = %q, want fail", submission.Status)
+	}
+	// The address is in the message because a blocked port is usually a firewall, and the first
+	// thing anyone asks is which port.
+	if !strings.Contains(submission.Detail, "smtp.mailkube.com:587") {
+		t.Errorf("submission detail = %q, want it to name what could not be reached", submission.Detail)
+	}
+	if find(t, view, "Terminal").Status != "ok" {
+		t.Error("a submission failure suppressed the local checks")
+	}
+}
+
+func TestOfflineSkipsTheSubmissionProbeToo(t *testing.T) {
+	t.Parallel()
+
+	probed := false
+	f := doctor.New()
+	f.Submit = func(context.Context, mksmtp.Config) (ports.SMTPSubmitter, error) {
+		probed = true
+		return &fakeSession{}, nil
+	}
+
+	deps, _, _ := testsupport.TestDeps(t, testsupport.TestOptions{})
+	withSubmissionHost(t, deps, "smtp.mailkube.com")
+
+	if _, err := f.Run(context.Background(), deps, true); err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if probed {
+		t.Error("--offline opened a submission connection")
+	}
+}
+
+func TestTheProxyRowReportsWhatDecidesWhetherRequestsLeaveTheMachine(t *testing.T) {
+	t.Parallel()
+
+	deps, _, _ := testsupport.TestDeps(t, testsupport.TestOptions{
+		Env: map[string]string{
+			"HTTPS_PROXY":   "http://proxy.corp:3128",
+			"SSL_CERT_FILE": "/etc/ssl/corp.pem",
+			"NO_PROXY":      "",
+		},
+	})
+	view, err := doctor.New().Run(context.Background(), deps, true)
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+
+	proxy := find(t, view, "Proxy")
+	for _, want := range []string{"HTTPS_PROXY=http://proxy.corp:3128", "SSL_CERT_FILE=/etc/ssl/corp.pem"} {
+		if !strings.Contains(proxy.Detail, want) {
+			t.Errorf("proxy detail = %q, want it to name %q", proxy.Detail, want)
+		}
+	}
+	// A variable that is set to nothing is not configuration, and listing it would send someone
+	// looking for a proxy that is not there.
+	if strings.Contains(proxy.Detail, "NO_PROXY") {
+		t.Errorf("an empty variable was reported as configured: %q", proxy.Detail)
+	}
+	// Stated because the two transports do not behave alike, and an afternoon can go into
+	// discovering that the proxy the API uses is not on the submission path at all.
+	if !strings.Contains(proxy.Detail, "SMTP submission does not use an HTTP proxy") {
+		t.Errorf("proxy detail = %q, want it to say SMTP does not use one", proxy.Detail)
+	}
+	// It is never a warning: a proxy is an ordinary way to be configured, not a fault.
+	if proxy.Status != "ok" {
+		t.Errorf("proxy status = %q, want ok", proxy.Status)
+	}
+}
+
+// fakeSession is a submission connection that answers with fixed capabilities.
+type fakeSession struct {
+	caps   mksmtp.Capabilities
+	closed bool
+}
+
+func (f *fakeSession) Send(mksmtp.Message) error         { return nil }
+func (f *fakeSession) Capabilities() mksmtp.Capabilities { return f.caps }
+func (f *fakeSession) Close()                            { f.closed = true }

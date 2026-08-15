@@ -193,29 +193,20 @@ func (f *Feature) withCredential(
 	return config, nil
 }
 
-// parsePort reads the resolved port.
+// parsePort reads the resolved port, as a configuration problem when it is not one.
 func parsePort(value string) (int, error) {
-	port := 0
-	for _, r := range strings.TrimSpace(value) {
-		if r < '0' || r > '9' {
-			return 0, errs.Configf("%q is not a usable SMTP port", value)
-		}
-		port = port*10 + int(r-'0')
-	}
-	if port <= 0 || port > 65535 {
-		return 0, errs.Configf("%q is not a usable SMTP port", value)
+	port, err := mksmtp.ParsePort(value)
+	if err != nil {
+		return 0, errs.Configf("%s", err)
 	}
 	return port, nil
 }
 
-// parseTLS reads the resolved encryption mode.
+// parseTLS reads the resolved encryption mode, as a configuration problem when it is not one.
 func parseTLS(value string) (mksmtp.TLSMode, error) {
-	switch mksmtp.TLSMode(strings.ToLower(strings.TrimSpace(value))) {
-	case mksmtp.STARTTLS:
-		return mksmtp.STARTTLS, nil
-	case mksmtp.Implicit:
-		return mksmtp.Implicit, nil
-	default:
-		return "", errs.Configf("%q is not a usable TLS mode: use starttls or implicit", value)
+	mode, err := mksmtp.ParseTLSMode(value)
+	if err != nil {
+		return "", errs.Configf("%s", err)
 	}
+	return mode, nil
 }

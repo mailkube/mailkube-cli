@@ -70,7 +70,7 @@ per_package="$(awk '
 
 while read -r pkg statements hit; do
   [[ -z "$pkg" ]] && continue
-  if (( statements < PACKAGE_EXEMPT_BELOW )); then
+  if ((statements < PACKAGE_EXEMPT_BELOW)); then
     continue
   fi
   pct="$(awk -v h="$hit" -v s="$statements" 'BEGIN { printf "%.1f", (h * 100) / s }')"
@@ -79,6 +79,6 @@ while read -r pkg statements hit; do
   fi
   echo "package ${pkg} is at ${pct}%, below the ${PACKAGE_FLOOR}% per-package floor" >&2
   failed=1
-done <<< "$per_package"
+done <<<"$per_package"
 
 exit "$failed"

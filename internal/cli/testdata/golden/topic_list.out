@@ -3,6 +3,7 @@ Available topics:
   files        Reading values from files and from stdin
   idempotency  Safe retries, --idempotency-key, and replay
   output       Output formats, the terminal rule, and the stream split
+  pagination   Listing pages, --all, and why a filter matters
   profiles     Profiles, the config file, and precedence
   testing      Sending test mail without spending quota or reputation
   webhooks     Why delivery outcomes arrive as events

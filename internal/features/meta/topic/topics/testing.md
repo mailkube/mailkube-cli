@@ -17,5 +17,9 @@ What to do instead:
   * Note that --sample deliberately generates links and images, which exercises link reputation
     on whatever domain you send from.
 
-`mailkube smtp test` without --from and --to submits no message at all: it opens a connection,
-reads the capabilities, and stops. Adding --auth attempts a sign-in and immediately disconnects.
+  * Both transports send for real. `--transport smtp` is a different protocol, not a test mode.
+
+`mailkube smtp test` submits no message at all: it opens a connection, reads the capabilities, and
+stops. Adding --auth also attempts a sign-in and immediately disconnects, which puts a credential
+on the wire but never a message. `mailkube doctor` sends nothing on either transport, which is why
+it is safe to run as often as you like.

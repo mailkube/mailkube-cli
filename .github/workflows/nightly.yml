@@ -1,0 +1,86 @@
+name: Nightly
+
+# Advisory, never a merge gate. Both jobs below are slow and one of them is non-deterministic, and
+# a required check with either property is a check people learn to re-run until it passes. They
+# report a number instead: the seed corpora already run inside the normal test job, so what is
+# lost by not gating here is the discovery of *new* inputs, which is exactly the work that suits a
+# nightly run and not a pull request.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch: # so a change to either job can be exercised without waiting a day
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    # Real fuzzing, as opposed to the seed corpora that run on every build. The targets are the
+    # four places arbitrary bytes meet a parser: text on its way to a terminal, the column
+    # clamp that text passes through, the key/value flag syntax, the schedule parser, and the
+    # message builder — where a surviving CR or LF forges a header.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: ./internal/kernel/output
+            target: FuzzSanitize
+          - package: ./internal/kernel/output
+            target: FuzzClamp
+          - package: ./internal/kernel/input
+            target: FuzzHeaderFlag
+          - package: ./internal/kernel/input
+            target: FuzzParseAt
+          - package: ./internal/kernel/smtp
+            target: FuzzBuild
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Fuzz ${{ matrix.target }}
+        run: go test ${{ matrix.package }} -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 10m
+
+      # A crasher is written into testdata/fuzz as a committable file. Publishing it is the whole
+      # point of the run: the fix is to commit that file as a seed and make it pass.
+      - name: Upload any crasher
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crasher-${{ matrix.target }}
+          path: internal/**/testdata/fuzz/**
+          if-no-files-found: ignore
+
+  mutate:
+    # Go reports statement coverage and has no branch metric, so a suite can be fully covered and
+    # still assert nothing about a condition. Mutation testing is the compensation: it changes the
+    # code and asks whether any test notices.
+    #
+    # Scoped to the pure-logic packages on purpose. A mutation inside an IO or network seam mostly
+    # produces a mutant no test *should* catch, and a score dominated by those is a number nobody
+    # can act on.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true # a report, not a verdict
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Install gremlins
+        run: go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.5.0
+
+      - name: Mutation testing (pure-logic packages)
+        run: ./scripts/mutation-report.sh
