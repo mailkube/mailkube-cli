@@ -14,12 +14,27 @@ import (
 	"iter"
 
 	mailkube "github.com/mailkube/mailkube-go"
+
+	mksmtp "github.com/mailkube/mailkube-cli/internal/kernel/smtp"
 )
 
 // EmailSender sends one message over the REST transport.
 type EmailSender interface {
 	// Send submits a message and returns what the server recorded about it.
 	Send(ctx context.Context, params mailkube.SendEmailParams) (*mailkube.Email, error)
+}
+
+// SMTPSubmitter submits one message over SMTP.
+//
+// The CLI depends on this rather than on the client itself, so the send path and the connectivity
+// probe share one implementation and a test substitutes two methods rather than a session.
+type SMTPSubmitter interface {
+	// Send submits one message on an already-authenticated session.
+	Send(message mksmtp.Message) error
+	// Capabilities is what the server advertised and what was negotiated.
+	Capabilities() mksmtp.Capabilities
+	// Close ends the session.
+	Close()
 }
 
 // ScheduleReader reads the scheduled-email collection.

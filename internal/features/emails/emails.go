@@ -35,6 +35,8 @@ type SenderFor func(deps *feature.Deps, r settings.Resolved) (ports.EmailSender,
 type Feature struct {
 	// Sender builds the send client. Nil means the real one.
 	Sender SenderFor
+	// Submitter opens the submission session. Nil means the real one.
+	Submitter SubmitterFor
 }
 
 // New returns the emails feature.

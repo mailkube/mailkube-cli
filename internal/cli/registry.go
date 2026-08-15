@@ -13,6 +13,7 @@ import (
 	"github.com/mailkube/mailkube-cli/internal/features/meta/topic"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/version"
 	"github.com/mailkube/mailkube-cli/internal/features/scheduled"
+	"github.com/mailkube/mailkube-cli/internal/features/smtpcheck"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 )
 
@@ -35,6 +36,7 @@ func Registry() []feature.Feature {
 	return []feature.Feature{
 		emails.New(),
 		scheduled.New(),
+		smtpcheck.New(),
 		auth.NewInit(credentials),
 		credentials,
 		config.New(),

@@ -1,0 +1,12 @@
+From: <hello@acme.com>
+To: <alice@example.com>
+Subject: Tagged
+Date: Fri, 14 Aug 2026 07:32:00 +0000
+MIME-Version: 1.0
+In-Reply-To: <abc@msg.example.com>
+X-Mailkube-Topic: news
+X-Campaign: launch
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+body

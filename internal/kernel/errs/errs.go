@@ -11,6 +11,8 @@ import (
 	"fmt"
 
 	mailkube "github.com/mailkube/mailkube-go"
+
+	"github.com/mailkube/mailkube-cli/internal/kernel/smtp"
 )
 
 // Code is a process exit code.
@@ -144,6 +146,9 @@ func CodeFor(err error) Code {
 		}
 	}
 
+	if code, ok := codeForSubmission(err); ok {
+		return code
+	}
 	return codeForSentinel(err)
 }
 
@@ -159,6 +164,35 @@ func codeForName(name string) (Code, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// codeForSubmission maps the submission categories, which the SDK knows nothing about.
+//
+// Without this a rejected SMTP password falls through to the server-error default: the caller is
+// told the platform failed and that retrying may help, when in fact their credential was refused
+// and repeating it is the one thing that could get their address blocked.
+//
+// Order matters here as it does below: the throttle comes before plain authentication, because
+// waiting and re-checking a credential are opposite responses to replies that look alike.
+func codeForSubmission(err error) (Code, bool) {
+	table := []struct {
+		sentinel error
+		code     Code
+	}{
+		{smtp.ErrAuthThrottled, CodeRateLimit},
+		{smtp.ErrAuth, CodeAuth},
+		{smtp.ErrTLS, CodeNetwork},
+		{smtp.ErrConnection, CodeNetwork},
+		{smtp.ErrPermanent, CodeValidation},
+		{smtp.ErrTransient, CodeServer},
+	}
+
+	for _, row := range table {
+		if errors.Is(err, row.sentinel) {
+			return row.code, true
+		}
+	}
+	return 0, false
 }
 
 // codeForSentinel maps the SDK's category sentinels.

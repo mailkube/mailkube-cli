@@ -1,6 +1,7 @@
 package emails_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -165,5 +166,84 @@ func TestATagMayCarryANameAlone(t *testing.T) {
 
 	if err := emails.Validate(p); err != nil {
 		t.Errorf("a valueless tag was rejected: %v", err)
+	}
+}
+
+func TestTagAndHeaderLimitsAreCheckedAsWellAsTheirCharsets(t *testing.T) {
+	t.Parallel()
+
+	long := strings.Repeat("a", 40)
+
+	tests := []struct {
+		name   string
+		mutate func(*emails.Payload)
+		wants  string
+	}{
+		{
+			"an overlong tag name",
+			func(p *emails.Payload) { p.Tags = []emails.Tag{{Name: long}} },
+			"max 16",
+		},
+		{
+			"an overlong tag value",
+			func(p *emails.Payload) { p.Tags = []emails.Tag{{Name: "a", Value: long}} },
+			"max 32",
+		},
+		{
+			"a nameless tag",
+			func(p *emails.Payload) { p.Tags = []emails.Tag{{Value: "x"}} },
+			"has no name",
+		},
+		{
+			"too many tags",
+			func(p *emails.Payload) {
+				for i := range 21 {
+					p.Tags = append(p.Tags, emails.Tag{Name: "t" + strconv.Itoa(i)})
+				}
+			},
+			"maximum is 20",
+		},
+		{
+			"a nameless header",
+			func(p *emails.Payload) { p.Headers = map[string]string{" ": "x"} },
+			"has no name",
+		},
+		{
+			"an overlong header name",
+			func(p *emails.Payload) { p.Headers = map[string]string{strings.Repeat("h", 65): "x"} },
+			"longer than 64",
+		},
+		{
+			"an overlong header value",
+			func(p *emails.Payload) { p.Headers = map[string]string{"X-A": strings.Repeat("v", 999)} },
+			"longer than 998",
+		},
+		{
+			"too many headers",
+			func(p *emails.Payload) {
+				p.Headers = map[string]string{}
+				for i := range 21 {
+					p.Headers["X-"+strconv.Itoa(i)] = "v"
+				}
+			},
+			"maximum is 20",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := valid()
+			tc.mutate(&p)
+
+			err := emails.Validate(p)
+			if err == nil {
+				t.Fatal("the payload was accepted")
+			}
+			if !strings.Contains(err.Error(), tc.wants) {
+				t.Errorf("message = %q, want it to mention %q", err, tc.wants)
+			}
+		})
 	}
 }

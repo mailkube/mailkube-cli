@@ -67,6 +67,11 @@ type sendOptions struct {
 	batchID                   string
 	idempotencyKey            string
 	payloadRef                string
+	transport                 string
+	smtpUser                  string
+	smtpHost                  string
+	smtpPort                  string
+	smtpTLS                   string
 	skeleton                  bool
 	sample                    bool
 	sampleLinks, sampleImages []string
@@ -128,6 +133,12 @@ func (o *sendOptions) register(cmd *cobra.Command) {
 		"make a retry safe; "+AutoKey+" derives one from the message")
 
 	fs.StringVar(&o.payloadRef, "json", "", "full payload as JSON: @file or @-")
+
+	fs.StringVar(&o.transport, "transport", string(API), "how to send: api or smtp")
+	fs.StringVar(&o.smtpUser, "smtp-user", "", "SMTP username, as localpart@verified-domain")
+	fs.StringVar(&o.smtpHost, "smtp-host", "", "submission host")
+	fs.StringVar(&o.smtpPort, "smtp-port", "", "submission port")
+	fs.StringVar(&o.smtpTLS, "smtp-tls", "", "encryption: starttls or implicit")
 	fs.BoolVar(&o.skeleton, "generate-skeleton", false, skeletonNotes())
 	fs.BoolVar(&o.sample, "sample", false, "generate a body with links and images")
 	fs.StringArrayVar(&o.sampleLinks, "link", nil, "link to include in the generated body (repeatable)")
@@ -150,6 +161,14 @@ func (f *Feature) runSend(cmd *cobra.Command, deps *feature.Deps, o *sendOptions
 		return err
 	}
 
+	transport, err := parseTransport(o.transport)
+	if err != nil {
+		return err
+	}
+	if transport == SMTP {
+		return f.runSMTP(cmd.Context(), deps, o, payload)
+	}
+
 	resolved, err := deps.Settings(settings.Overrides{})
 	if err != nil {
 		return err
@@ -159,6 +178,38 @@ func (f *Feature) runSend(cmd *cobra.Command, deps *feature.Deps, o *sendOptions
 		return emitDryRun(deps, resolved, payload)
 	}
 	return f.submit(cmd.Context(), deps, resolved, o, payload)
+}
+
+// runSMTP previews or performs a submission.
+//
+// The preview is built from the same message the send would submit, so a dry run shows the bytes
+// that would go on the wire rather than a description of them.
+func (f *Feature) runSMTP(ctx context.Context, deps *feature.Deps, o *sendOptions, p Payload) error {
+	if !o.dryRun {
+		return f.submitOverSMTP(ctx, deps, o, p)
+	}
+
+	if err := checkSMTPSupport(p, o.idempotencyKey); err != nil {
+		return err
+	}
+	config, err := f.smtpConfig(deps, o)
+	if err != nil {
+		return err
+	}
+	message, err := smtpMessage(deps, p)
+	if err != nil {
+		return err
+	}
+	message.Attachments = previewAttachments(message.Attachments)
+
+	raw, err := message.Build()
+	if err != nil {
+		return err
+	}
+	return deps.Emit(SMTPDryRunView{
+		Host: config.Address(), TLS: string(config.TLS), Username: config.Username,
+		Message: string(raw), DryRun: true,
+	})
 }
 
 // payload assembles the message from a JSON base and the flags that refine it.

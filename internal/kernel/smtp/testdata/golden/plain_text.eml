@@ -1,0 +1,9 @@
+From: "Acme" <hello@acme.com>
+To: <alice@example.com>
+Subject: Welcome
+Date: Fri, 14 Aug 2026 07:32:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Thanks for signing up.

@@ -176,3 +176,35 @@ func plural(n int, unit string) string {
 	}
 	return fmt.Sprintf("in %d %ss", n, unit)
 }
+
+// SMTPDryRunView is the submission a send would have made.
+//
+// It shows the connection line and the rendered message, because on this transport the two
+// questions are "where am I submitting, and as whom" and "what exactly goes on the wire" — and
+// the second is a MIME document rather than a JSON body.
+type SMTPDryRunView struct {
+	// Host is where it would connect.
+	Host string `json:"host"`
+	// TLS is how the connection would be encrypted.
+	TLS string `json:"tls"`
+	// Username is the principal it would authenticate as.
+	//
+	// Worth showing beside the message, because it is not the From address: they are
+	// different values, and someone reading a preview needs to see both.
+	Username string `json:"username"`
+	// Message is the rendered message, with attachment content elided.
+	Message string `json:"message"`
+	// DryRun is always true, so a machine can tell this apart from a submission.
+	DryRun bool `json:"dryRun"`
+}
+
+// RenderText implements output.TextRenderer.
+func (v SMTPDryRunView) RenderText(_ output.Caps) []string {
+	lines := []string{
+		v.Host + "  " + strings.ToUpper(v.TLS) + "  AUTH PLAIN as " + v.Username,
+		"---",
+	}
+	lines = append(lines, strings.Split(strings.ReplaceAll(
+		strings.TrimRight(v.Message, "\r\n"), "\r\n", "\n"), "\n")...)
+	return append(lines, "(dry run — nothing was sent)")
+}

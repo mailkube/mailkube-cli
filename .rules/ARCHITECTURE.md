@@ -29,8 +29,10 @@ depends on people remembering it is a diagram, not an architecture.
    command without reading all of them.
 2. **The kernel never imports a feature.** If it needs something a feature has, invert it with an
    interface declared in the kernel and implemented by the feature.
-3. **`net/smtp` is denied everywhere.** SMTP lives in the SDK's `smtp` subpackage. A second
-   implementation of a wire format is how two of them start disagreeing.
+3. **`net/smtp` is denied outside `kernel/smtp`.** Submission is spoken in exactly one package,
+   behind an interface in `kernel/ports`, so a command that sends over SMTP and a command that
+   tests a credential are using the same client. A second implementation of a wire format is how
+   two of them start disagreeing.
 4. **`net/http` is denied outside four places**: `kernel/clientfactory` (which constructs the
    `*http.Client` handed to the SDK), `kernel/tunnel`, `features/webhooks` (which serves a local
    listener), and the `version` and `doctor` meta features (which probe). Anywhere else, an
@@ -42,6 +44,14 @@ expected and is not a violation.
 **The CLI calls the API only through `github.com/mailkube/mailkube-go`.** There is no second HTTP
 path, no hand-rolled request, and no URL literal outside `clientfactory`. When the API gains
 something the CLI needs, it goes into the SDK first.
+
+The rule is about the API, not about protocols in general, and the difference is worth stating.
+The SDK exists to hold what is specific to Mailkube: how a request is authenticated, what an
+error envelope looks like, what an idempotency key binds to. SMTP is none of those things — it is
+a standard protocol with a standard library behind it, so `kernel/smtp` composes messages with
+`mime` and submits them with `net/smtp`, and no SDK is involved. What *is* specific to Mailkube on
+that path — which headers a customer may set, what shape a username takes — is product policy, and
+it lives beside the equivalent rules for the REST path rather than inside a protocol client.
 
 ## The testability seams
 

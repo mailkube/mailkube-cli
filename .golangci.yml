@@ -66,16 +66,18 @@ linters:
             - pkg: github.com/mailkube/mailkube-cli/internal/features
               desc: "the kernel must not import a feature — invert the dependency with an interface"
 
-        # The CLI speaks no protocol directly. Every API call goes through the mailkube-go SDK,
-        # and SMTP lives in the SDK's smtp subpackage. net/smtp here would mean a second
-        # implementation of the wire format.
-        no-hand-rolled-protocols:
+        # Every Mailkube API call goes through the mailkube-go SDK; that is what the SDK is for.
+        # SMTP is a standard protocol rather than a proprietary one, so it is spoken here — but in
+        # exactly one package, behind an interface, because a second implementation of a wire
+        # format is how two of them start disagreeing.
+        smtp-lives-in-one-place:
           files:
             - "$all"
             - "!$test"
+            - "!**/internal/kernel/smtp/**"
           deny:
             - pkg: net/smtp
-              desc: "SMTP belongs to the SDK's smtp subpackage — the CLI never speaks it directly"
+              desc: "submission is spoken in kernel/smtp only — depend on ports.SMTPSubmitter instead"
 
         # net/http is for constructing an *http.Client to hand the SDK, serving the local
         # webhook listener, and two meta commands that probe. Anywhere else it is a REST call

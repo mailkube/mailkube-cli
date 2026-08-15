@@ -25,6 +25,18 @@ const DefaultProfile = "default"
 // DefaultTimeout bounds a single API call.
 const DefaultTimeout = 30 * time.Second
 
+// The submission defaults, which exist so that configuring a username and a host is enough.
+//
+// 587 with STARTTLS is what a submission service is expected to offer, so requiring both to be
+// stated would be ceremony for the common case — and the values are shown by `config list` with
+// "(default)" beside them, so nothing about them is hidden.
+const (
+	// DefaultSMTPPort is the submission port.
+	DefaultSMTPPort = "587"
+	// DefaultSMTPTLS is the encryption mode. There is no unencrypted option anywhere.
+	DefaultSMTPTLS = "starttls"
+)
+
 // The environment variables this package reads. They are named here rather than at each use so
 // the set is enumerable: `doctor` and `config list` both report on them, and a variable read in
 // one place and unknown to the other is a setting the user cannot diagnose.
@@ -162,8 +174,12 @@ func Resolve(g Globals, o Overrides, cfg *configstore.Config, env output.Lookup)
 		SMTPUser:     pick(input{flag: o.SMTPUser, flagName: "--smtp-user", config: smtp.Username}),
 		SMTPPassword: pick(input{envKey: EnvSMTPPassword, env: env, config: smtp.Password}),
 		SMTPHost:     pick(input{flag: o.SMTPHost, flagName: "--smtp-host", config: smtp.Host}),
-		SMTPPort:     pick(input{flag: o.SMTPPort, flagName: "--smtp-port", config: port(smtp.Port)}),
-		SMTPTLS:      pick(input{flag: o.SMTPTLS, flagName: "--smtp-tls", config: smtp.TLS}),
+		SMTPPort: pick(input{
+			flag: o.SMTPPort, flagName: "--smtp-port", config: port(smtp.Port), def: DefaultSMTPPort,
+		}),
+		SMTPTLS: pick(input{
+			flag: o.SMTPTLS, flagName: "--smtp-tls", config: smtp.TLS, def: string(DefaultSMTPTLS),
+		}),
 	}
 }
 
@@ -234,7 +250,10 @@ func profileNamed(cfg *configstore.Config, name string) configstore.Profile {
 
 // port renders a stored port number, treating zero as unset rather than as the number 0.
 func port(p *int) string {
-	if p == nil {
+	// Both an absent pointer and a stored zero mean "not configured". The pointer is what keeps
+	// an unset port out of the file in the first place, but a file can be edited by hand, and a
+	// zero that resolved as a port would produce a dial to nowhere with nothing to explain it.
+	if p == nil || *p <= 0 {
 		return ""
 	}
 	return strconv.Itoa(*p)

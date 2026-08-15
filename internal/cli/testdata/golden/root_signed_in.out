@@ -9,6 +9,9 @@ SEND
   emails send       Send an email
   scheduled-emails  List, reschedule and cancel scheduled sends
 
+DEVELOP
+  smtp test         Test SMTP connectivity and credentials
+
 SETUP
   init              Guided first-time setup
   auth login        Store credentials

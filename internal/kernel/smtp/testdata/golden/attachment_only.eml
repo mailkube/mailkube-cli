@@ -1,0 +1,21 @@
+From: <hello@acme.com>
+To: <alice@example.com>
+Subject: Your report
+Date: Fri, 14 Aug 2026 07:32:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+--BOUNDARY
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset=utf-8
+
+Attached.
+
+--BOUNDARY
+Content-Disposition: attachment; filename=report.pdf
+Content-Transfer-Encoding: base64
+Content-Type: application/octet-stream
+
+JVBERi0xLjQgbm90IHJlYWxseSBhIHBkZg==
+
+--BOUNDARY--

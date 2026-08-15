@@ -42,6 +42,8 @@ mailkube skill
 mailkube skill install
 mailkube skill path
 mailkube skill show
+mailkube smtp
+mailkube smtp test
 mailkube suppressions
 mailkube templates
 mailkube topic

@@ -267,8 +267,8 @@ func TestEverySettableKeyReadsBackAndClears(t *testing.T) {
 		{key: "base_url", value: "https://api.example.test/mta/v1/", hasDefault: true},
 		{key: "smtp_user", value: "app01@acme.com"},
 		{key: "smtp_host", value: "smtp.example.test"},
-		{key: "smtp_port", value: "587"},
-		{key: "smtp_tls", value: "implicit"},
+		{key: "smtp_port", value: "2525", hasDefault: true},
+		{key: "smtp_tls", value: "implicit", hasDefault: true},
 	}
 
 	for _, tc := range tests {

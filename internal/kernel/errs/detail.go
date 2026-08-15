@@ -4,6 +4,8 @@ import (
 	"errors"
 
 	mailkube "github.com/mailkube/mailkube-go"
+
+	"github.com/mailkube/mailkube-cli/internal/kernel/smtp"
 )
 
 // Detail is everything the CLI knows about a failure, in one shape.
@@ -100,6 +102,18 @@ func Describe(err error) Detail {
 		d.StatusCode = apiErr.StatusCode
 		d.RequestID = apiErr.RequestID
 		d.RetryAfter = apiErr.RetryAfter
+	}
+
+	var submission *smtp.Error
+	if errors.As(err, &submission) {
+		// The reply code and its enhanced status are the failure's identity on this
+		// transport, and they are what `errors explain` is keyed on — so naming them here is
+		// what connects a failure a user just saw to the command that explains it.
+		d.Name = submission.Reply()
+		d.Message = submission.Message
+		if reply := submission.Reply(); reply != "" {
+			d.Hints = append(d.Hints, "Explain it: mailkube errors explain "+reply)
+		}
 	}
 
 	var adviser Adviser

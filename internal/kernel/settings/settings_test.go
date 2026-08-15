@@ -161,16 +161,35 @@ func TestSMTPOverridesBeatTheStoredProfile(t *testing.T) {
 	}
 }
 
-func TestAnAbsentPortIsUnsetRatherThanZero(t *testing.T) {
+func TestAnAbsentPortFallsBackToTheSubmissionDefault(t *testing.T) {
 	t.Parallel()
 
+	// A profile with a username and nothing else is the ordinary case: 587 with STARTTLS is
+	// what a submission service is expected to offer, so requiring both to be written down
+	// would be ceremony. The provenance still says where the value came from, so `config list`
+	// shows "(default)" beside it and nothing about it is hidden.
 	cfg := &configstore.Config{Profiles: map[string]configstore.Profile{
 		"default": {SMTP: &configstore.SMTP{Username: "app01@acme.com"}},
 	}}
 
 	got := settings.Resolve(settings.Globals{}, settings.Overrides{}, cfg, output.MapEnv(nil))
-	if got.SMTPPort.Set() {
-		t.Errorf("port = %q, want it reported as unset", got.SMTPPort.Value)
+	if got.SMTPPort.Value != settings.DefaultSMTPPort {
+		t.Errorf("port = %q, want the default %q", got.SMTPPort.Value, settings.DefaultSMTPPort)
+	}
+	if got.SMTPPort.Source != settings.FromDefault {
+		t.Errorf("port source = %v, want it attributed to the default", got.SMTPPort.Source)
+	}
+	if got.SMTPTLS.Value != settings.DefaultSMTPTLS {
+		t.Errorf("tls = %q, want the default %q", got.SMTPTLS.Value, settings.DefaultSMTPTLS)
+	}
+
+	// A zero in the file is still not a port: the config store writes the field only when it
+	// has been set, and a stored 0 would resolve to a dial that cannot work.
+	zero := &configstore.Config{Profiles: map[string]configstore.Profile{
+		"default": {SMTP: &configstore.SMTP{Username: "app01@acme.com", Port: configstore.Port(0)}},
+	}}
+	if got := settings.Resolve(settings.Globals{}, settings.Overrides{}, zero, output.MapEnv(nil)); got.SMTPPort.Value == "0" {
+		t.Error("a stored zero was resolved as a port")
 	}
 }
 
