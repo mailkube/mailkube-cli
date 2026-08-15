@@ -33,6 +33,9 @@ const (
 	defaultTolerance = 300 * time.Second
 	defaultMaxBody   = "1MiB"
 	defaultMaxField  = 512
+	// defaultForwardWait bounds one forward. The platform allows a delivery ten seconds, so a
+	// forward that takes longer than that cannot be waited on anyway without risking the ack.
+	defaultForwardWait = 10 * time.Second
 )
 
 // The rendering modes `--print` selects.
@@ -67,11 +70,23 @@ func (*Feature) Name() string { return "webhooks" }
 
 // HelpEntries implements feature.Listed.
 func (*Feature) HelpEntries() []feature.Entry {
-	return []feature.Entry{{
-		Group:      feature.GroupDevelop,
-		Invocation: "webhooks listen",
-		Summary:    "Receive webhook events on your machine",
-	}}
+	return []feature.Entry{
+		{
+			Group:      feature.GroupDevelop,
+			Invocation: "webhooks listen",
+			Summary:    "Receive webhook events on your machine",
+		},
+		{
+			Group:      feature.GroupDevelop,
+			Invocation: "webhooks simulate",
+			Summary:    "Send a test event to a local endpoint",
+		},
+		{
+			Group:      feature.GroupDevelop,
+			Invocation: "webhooks verify",
+			Summary:    "Verify a webhook signature offline",
+		},
+	}
 }
 
 // Command implements feature.Feature.
@@ -84,7 +99,7 @@ func (f *Feature) Command(deps *feature.Deps) *cobra.Command {
 			return c.Help()
 		},
 	}
-	cmd.AddCommand(f.listenCmd(deps))
+	cmd.AddCommand(f.listenCmd(deps), f.verifyCmd(deps), f.simulateCmd(deps))
 	cmd.AddCommand(managedElsewhere()...)
 	return cmd
 }
@@ -131,6 +146,7 @@ type options struct {
 	port        int
 	path        string
 	publicURL   string
+	local       bool
 	secret      string
 	tolerance   time.Duration
 	skipVerify  bool
@@ -138,6 +154,12 @@ type options struct {
 	maxField    int
 	filter      []string
 	print       string
+	record      string
+	forward     string
+	forwardSync bool
+	forwardDups bool
+	forwardWait time.Duration
+	force       bool
 	exitAfter   int
 	exitTimeout time.Duration
 }
@@ -164,6 +186,7 @@ func (f *Feature) listenCmd(deps *feature.Deps) *cobra.Command {
 	fs.IntVar(&o.port, "port", defaultPort, "port to bind")
 	fs.StringVar(&o.path, "path", defaultPath, "path deliveries arrive on")
 	fs.StringVar(&o.publicURL, "public-url", "", "the tunnel URL this listener is reachable at")
+	fs.BoolVar(&o.local, "local", false, "run without a public URL; only what you post yourself arrives")
 	fs.StringVar(&o.secret, "secret", "", "endpoint signing secret; MAILKUBE_WEBHOOK_SECRET is read too")
 	fs.DurationVar(&o.tolerance, "tolerance", defaultTolerance, "accepted clock skew on a delivery timestamp")
 	fs.BoolVar(&o.skipVerify, "skip-verify", false, "accept unverified deliveries (development only)")
@@ -171,6 +194,12 @@ func (f *Feature) listenCmd(deps *feature.Deps) *cobra.Command {
 	fs.IntVar(&o.maxField, "max-field", defaultMaxField, "widest rendered field before it is shortened")
 	fs.StringSliceVar(&o.filter, "filter", nil, "only handle these event types")
 	fs.StringVar(&o.print, "print", printPretty, "human rendering: pretty, raw or summary")
+	fs.StringVar(&o.record, "record", "", "append every accepted delivery to this .jsonl file")
+	fs.StringVar(&o.forward, "forward", "", "re-post every accepted delivery to this local URL")
+	fs.BoolVar(&o.forwardSync, "forward-sync", false, "wait for the forward before acknowledging the delivery")
+	fs.BoolVar(&o.forwardDups, "forward-duplicates", false, "forward redeliveries as well as new events")
+	fs.DurationVar(&o.forwardWait, "forward-timeout", defaultForwardWait, "how long a forward may take")
+	fs.BoolVar(&o.force, "force", false, "allow a forward target that is not on this machine")
 	fs.IntVar(&o.exitAfter, "exit-after", 0, "stop once this many matching events have arrived")
 	fs.DurationVar(&o.exitTimeout, "exit-timeout", 0, "stop with exit 124 if that has not happened in time")
 	return cmd

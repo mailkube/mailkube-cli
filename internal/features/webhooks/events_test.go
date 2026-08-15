@@ -163,14 +163,20 @@ func TestTheFeatureDescribesItselfToTheRegistry(t *testing.T) {
 		t.Errorf("Name() = %q", f.Name())
 	}
 
-	entries := f.HelpEntries()
-	if len(entries) != 1 {
-		t.Fatalf("HelpEntries() returned %d entries, want 1", len(entries))
+	// All three verbs are listed, because all three are things a person types at the top level
+	// while developing. A feature that contributed only its first command would leave the
+	// other two discoverable by reading the source.
+	listed := map[string]bool{}
+	for _, entry := range f.HelpEntries() {
+		if entry.Group != feature.GroupDevelop {
+			t.Errorf("%q is grouped under %q, not the development loop", entry.Invocation, entry.Group)
+		}
+		listed[entry.Invocation] = true
 	}
-	if entries[0].Group != feature.GroupDevelop {
-		t.Errorf("the listener is grouped under %q, not the development loop", entries[0].Group)
-	}
-	if entries[0].Invocation != "webhooks listen" {
-		t.Errorf("Invocation = %q", entries[0].Invocation)
+
+	for _, want := range []string{"webhooks listen", "webhooks simulate", "webhooks verify"} {
+		if !listed[want] {
+			t.Errorf("%q is not on the root screen", want)
+		}
 	}
 }

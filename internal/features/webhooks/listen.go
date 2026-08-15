@@ -30,12 +30,14 @@ type config struct {
 	path string
 	// secret verifies deliveries. Empty only when the user asked for no verification.
 	secret string
-	// publicURL is the tunnel address to register.
+	// publicURL is the tunnel address to register, empty when running --local.
 	publicURL string
 	// maxBody is the largest delivery accepted.
 	maxBody int64
 	// filter is the set of event types to handle, empty meaning all of them.
 	filter map[string]bool
+	// forward is where each accepted delivery is re-posted, empty when nowhere.
+	forward string
 }
 
 // run binds, announces, and serves until something says to stop.
@@ -55,9 +57,30 @@ func (f *Feature) run(ctx context.Context, deps *feature.Deps, o *options) error
 		return errs.Configf("cannot listen on %s: %s.\nPass --port to use another.", cfg.address, bindReason(err))
 	}
 
-	session := newSession(deps, o, cfg)
+	session, err := newSession(deps, o, cfg)
+	if err != nil {
+		_ = socket.Close()
+		return err
+	}
+
 	session.banner()
 	return session.serve(ctx, socket)
+}
+
+// loopback reports whether an address reaches only this machine.
+//
+// It parses rather than compares, because "127.0.0.1", "::1" and "127.0.0.2" are all this machine
+// and a string match would accept the first and refuse the others for no reason a user could
+// guess. A name other than "localhost" is not resolved: a lookup here would mean a --forward guard
+// whose answer depends on the DNS server, which is not a guard.
+func loopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 // bind opens the socket, real unless a test substituted one.
@@ -98,7 +121,11 @@ func (f *Feature) settle(deps *feature.Deps, o *options) (config, error) {
 	if err != nil {
 		return config{}, err
 	}
-	public, err := publicEndpoint(o.publicURL, o.port)
+	public, err := publicEndpoint(o)
+	if err != nil {
+		return config{}, err
+	}
+	forward, err := forwardTarget(o)
 	if err != nil {
 		return config{}, err
 	}
@@ -114,6 +141,7 @@ func (f *Feature) settle(deps *feature.Deps, o *options) (config, error) {
 		publicURL: public,
 		maxBody:   maxBody,
 		filter:    filterSet(deps, o.filter),
+		forward:   forward,
 	}, nil
 }
 
@@ -164,12 +192,7 @@ func deliveryPath(path string) (string, error) {
 // signature is the only thing separating a real delivery from a stranger's, and a tool whose
 // default is to skip that check teaches a habit that carries into the user's own handler.
 func resolveSecret(deps *feature.Deps, o *options) (string, error) {
-	secret := strings.TrimSpace(o.secret)
-	if secret == "" {
-		if v, ok := deps.Env(settings.EnvWebhookSecret); ok {
-			secret = strings.TrimSpace(v)
-		}
-	}
+	secret := secretFrom(deps, o.secret)
 
 	switch {
 	case secret != "" && o.skipVerify:
@@ -188,21 +211,47 @@ func resolveSecret(deps *feature.Deps, o *options) (string, error) {
 		settings.EnvWebhookSecret, routes.Dashboard("/domain/webhooks"))
 }
 
+// secretFrom resolves a signing secret from the flag, then the environment.
+//
+// One place, because all three commands here take a secret and a fourth reading of the same
+// variable is how one of them ends up honouring a spelling the others do not. The secret is never
+// read from the config file: it belongs to one endpoint rather than to a profile, and a developer
+// usually holds several at once, so storing one would make the wrong one the default.
+func secretFrom(deps *feature.Deps, flag string) string {
+	if secret := strings.TrimSpace(flag); secret != "" {
+		return secret
+	}
+	if fromEnv, ok := deps.Env(settings.EnvWebhookSecret); ok {
+		return strings.TrimSpace(fromEnv)
+	}
+	return ""
+}
+
 // publicEndpoint checks the tunnel URL, or explains why one is needed.
 //
-// Requiring it up front rather than at registration time is the point: without a public address
-// no event can ever arrive, so a listener that started anyway would sit there looking correct.
-func publicEndpoint(raw string, port int) (string, error) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		local := "http://" + defaultHost + ":" + strconv.Itoa(port)
+// Requiring it up front rather than at registration time is the point: without a public address no
+// event can ever arrive, so a listener that started anyway would sit there looking correct. The
+// CLI never starts a tunnel itself, so this string is the only way a public address enters the
+// program.
+func publicEndpoint(o *options) (string, error) {
+	value := strings.TrimSpace(o.publicURL)
+
+	switch {
+	case o.local && value != "":
+		return "", errs.Usagef("--local and --public-url ask for opposite things. Pass one or the other.")
+	case o.local:
+		// Deliberately empty. --local is the caller saying there is no tunnel, which is
+		// true for a loop driven by `webhooks simulate` or by a replayed capture.
+		return "", nil
+	case value == "":
 		return "", errs.Configf(
 			"a public URL is required: Mailkube delivers only to public https addresses.\n\n"+
 				"Start a tunnel, then pass the URL it gives you:\n"+
-				"  cloudflared tunnel --url %s\n"+
+				"  cloudflared tunnel --url http://%s:%d\n"+
 				"  ngrok http %d\n\n"+
-				"  mailkube webhooks listen --public-url https://<your-url>",
-			local, port)
+				"  mailkube webhooks listen --public-url https://<your-url>\n\n"+
+				"Or pass --local to receive only what you post yourself, with `webhooks simulate`.",
+			defaultHost, o.port, o.port)
 	}
 
 	parsed, err := url.Parse(value)
@@ -213,6 +262,30 @@ func publicEndpoint(raw string, port int) (string, error) {
 		return "", errs.Configf(
 			"%q is not an https URL, and Mailkube delivers only over https.\n"+
 				"A tunnel gives you an https address even though this listener speaks plain HTTP.", value)
+	}
+	return value, nil
+}
+
+// forwardTarget checks where deliveries are re-posted, and refuses to shout at a stranger.
+//
+// A forward is this machine re-sending someone else's signed payload, so the default target has to
+// be this machine. Pointing it at a public address turns a development tool into a relay, and the
+// mistake that does it is a typo in a hostname rather than a decision anyone made.
+func forwardTarget(o *options) (string, error) {
+	value := strings.TrimSpace(o.forward)
+	if value == "" {
+		return "", nil
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return "", errs.Usagef("--forward %q is not an http or https URL", value)
+	}
+	if !o.force && !loopback(parsed.Hostname()) {
+		return "", errs.Usagef(
+			"--forward %q is not on this machine.\n"+
+				"Forwarding re-sends a signed payload, so the target is loopback unless you pass --force.",
+			value)
 	}
 	return value, nil
 }

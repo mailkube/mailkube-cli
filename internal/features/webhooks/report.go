@@ -35,24 +35,59 @@ func (s *session) banner() {
 	deps.Progress("  mailkube webhooks listen")
 	deps.Progress("")
 	deps.Progress("  Listening   %s", s.localURL())
-	deps.Progress("  Public URL  %s   register this in the dashboard", output.Sanitize(s.cfg.publicURL))
+	if s.cfg.publicURL != "" {
+		deps.Progress("  Public URL  %s   register this in the dashboard", output.Sanitize(s.cfg.publicURL))
+	}
 	deps.Progress("  Signature   %s", s.signature())
 	deps.Progress("  Times       UTC")
 	if len(s.cfg.filter) > 0 {
 		deps.Progress("  Filter      %s", s.filtered())
 	}
+	if s.cfg.forward != "" {
+		deps.Progress("  Forward     %s%s", output.Sanitize(s.cfg.forward), s.forwardMode())
+	}
+	if s.o.record != "" {
+		deps.Progress("  Recording   %s", output.Sanitize(s.o.record))
+	}
 
 	deps.Progress("")
-	deps.Progress("  %s  Event routing is exclusive. Subscribing this URL to an event type on a", glyphs.Warn)
-	deps.Progress("     production domain MOVES that event off your production endpoint, and")
-	deps.Progress("     there is no redelivery. Use a test domain.")
+	if s.cfg.publicURL == "" {
+		s.explainLocal()
+	} else {
+		deps.Progress("  %s  Event routing is exclusive. Subscribing this URL to an event type on a", glyphs.Warn)
+		deps.Progress("     production domain MOVES that event off your production endpoint, and")
+		deps.Progress("     there is no redelivery. Use a test domain.")
+	}
 	s.warnExposed()
 
 	deps.Progress("")
-	deps.Progress("  Next: add the public URL at %s", routes.Dashboard("/domain/webhooks"))
-	deps.Progress("        Keep this running: registration probes it with a challenge request.")
-	deps.Progress("")
+	if s.cfg.publicURL != "" {
+		deps.Progress("  Next: add the public URL at %s", routes.Dashboard("/domain/webhooks"))
+		deps.Progress("        Keep this running: registration probes it with a challenge request.")
+		deps.Progress("")
+	}
 	deps.Progress("  Waiting for events%s (Ctrl+C to stop)", glyphs.Ellipsis)
+}
+
+// explainLocal says what --local actually means, which is easy to get wrong in the hopeful
+// direction.
+//
+// Someone who reaches for it because the tunnel was inconvenient needs to know that they have not
+// worked around the tunnel: they have opted out of receiving anything real.
+func (s *session) explainLocal() {
+	s.deps.Progress("  %s  Local only. No public URL, so nothing from Mailkube can reach this",
+		s.deps.Caps.Glyphs.Warn)
+	s.deps.Progress("     listener. Only what you post yourself will arrive:")
+	s.deps.Progress("")
+	s.deps.Progress("       mailkube webhooks simulate --url http://%s --event email.delivered", s.cfg.address)
+}
+
+// forwardMode names the two ways a forward can be waited on, and only when it is the unusual one.
+func (s *session) forwardMode() string {
+	if s.o.forwardSync {
+		return "  (acknowledged only after the target answers)"
+	}
+	return ""
 }
 
 // localURL is where deliveries land on this machine.
@@ -96,11 +131,6 @@ func (s *session) warnExposed() {
 		s.deps.Caps.Glyphs.Warn, s.o.host)
 	s.deps.Progress("     only from this machine. That is what a container needs and is not what")
 	s.deps.Progress("     you want on a shared one.")
-}
-
-// loopback reports whether an address reaches only this machine.
-func loopback(host string) bool {
-	return host == defaultHost || host == "localhost"
 }
 
 // note writes one line about the run to the error stream.
@@ -161,6 +191,8 @@ func (s *session) summary() {
 	parts = appendCount(parts, s.counts.filtered, "filtered", "filtered")
 	parts = appendCount(parts, s.counts.rejected, "rejected", "rejected")
 	parts = appendCount(parts, s.counts.handshakes, "handshake", "handshakes")
+	parts = appendCount(parts, s.counts.forwarded, "forwarded", "forwarded")
+	parts = appendCount(parts, s.counts.forwardFailures, "forward failed", "forwards failed")
 	if uptime := s.deps.Clock.Now().Sub(s.started); uptime >= time.Second {
 		parts = append(parts, "uptime "+elapsed(uptime))
 	}

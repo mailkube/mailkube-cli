@@ -54,4 +54,6 @@ mailkube webhooks delete
 mailkube webhooks get
 mailkube webhooks list
 mailkube webhooks listen
+mailkube webhooks simulate
 mailkube webhooks update
+mailkube webhooks verify

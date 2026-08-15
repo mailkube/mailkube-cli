@@ -38,6 +38,7 @@ const (
 const (
 	headerDeliveryID        = "X-Webhook-Id"
 	headerDeliveryTimestamp = "X-Webhook-Ts"
+	headerDeliverySignature = "X-Webhook-Sig"
 )
 
 // counts is what the closing summary reports.
@@ -52,6 +53,10 @@ type counts struct {
 	rejected int
 	// handshakes is the number of registration probes answered.
 	handshakes int
+	// forwarded is the number of deliveries the local target accepted.
+	forwarded int
+	// forwardFailures is the number it did not.
+	forwardFailures int
 }
 
 // session is one run of the listener.
@@ -75,6 +80,13 @@ type session struct {
 	// message can say how long it took.
 	timeline *recent
 
+	// capture appends every accepted delivery to a file, nil when --record was not asked for.
+	capture *recorder
+	// relay re-posts to a local application, nil when --forward was not asked for.
+	relay *forwarder
+	// inFlight counts forwards still running, so a stop can wait for them.
+	inFlight sync.WaitGroup
+
 	// done is closed when the run should end of its own accord.
 	done chan struct{}
 	// failure is why, and is nil when the run simply got what it was waiting for.
@@ -83,9 +95,13 @@ type session struct {
 	once sync.Once
 }
 
-// newSession prepares a run.
-func newSession(deps *feature.Deps, o *options, cfg config) *session {
-	return &session{
+// newSession prepares a run, opening the capture file if there is one.
+//
+// The file is opened here rather than at the first event, so a path that cannot be written is a
+// refusal before the banner rather than a surprise twenty minutes into a run whose whole purpose
+// was to capture something.
+func newSession(deps *feature.Deps, o *options, cfg config) (*session, error) {
+	s := &session{
 		deps:     deps,
 		o:        o,
 		cfg:      cfg,
@@ -94,6 +110,18 @@ func newSession(deps *feature.Deps, o *options, cfg config) *session {
 		timeline: newRecent(rememberedDeliveries),
 		done:     make(chan struct{}),
 	}
+
+	if o.record != "" {
+		capture, err := newRecorder(o.record)
+		if err != nil {
+			return nil, err
+		}
+		s.capture = capture
+	}
+	if cfg.forward != "" {
+		s.relay = newForwarder(cfg.forward, o.forwardWait, deps.Clock)
+	}
+	return s, nil
 }
 
 // serve runs the listener until something stops it, then reports what happened.
@@ -107,6 +135,51 @@ func (s *session) serve(ctx context.Context, socket net.Listener) error {
 	s.shutdown(server)
 	s.summary()
 	return err
+}
+
+// shutdown stops the server, then lets the work it started finish.
+//
+// Order matters: stop accepting, drain what is in flight, then close the capture. Closing the file
+// first would drop the last few lines, which are the ones someone was watching for.
+func (s *session) shutdown(server *http.Server) {
+	// A fresh context, because by the time we are here the caller's is usually already
+	// cancelled, and a drain that inherited that cancellation would not drain.
+	ctx, cancel := context.WithTimeout(context.Background(), drainGrace)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		// The grace window expired with work still running. Ending it is the honest move:
+		// the alternative is a command that will not exit when asked twice.
+		_ = server.Close()
+	}
+	s.drainForwards()
+
+	if s.capture != nil {
+		s.capture.close()
+	}
+}
+
+// drainForwards waits out the forwards still running, but not forever.
+//
+// A local application that has stopped answering must not be able to hold this process open: the
+// forwarder's own per-request timeout is the real bound, and this is the backstop for the case
+// where several are in flight at once.
+func (s *session) drainForwards() {
+	if s.relay == nil {
+		return
+	}
+
+	finished := make(chan struct{})
+	go func() {
+		s.inFlight.Wait()
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+	case <-time.After(drainGrace):
+		s.deps.Progress("  %s  gave up waiting for a forward to finish", s.deps.Caps.Glyphs.Warn)
+	}
 }
 
 // wait blocks until the run is over and returns the outcome.
@@ -162,20 +235,6 @@ func (s *session) deadlineReason() string {
 	return fmt.Sprintf("no event arrived within %s", s.o.exitTimeout)
 }
 
-// shutdown stops the server, giving in-flight deliveries a bounded moment to finish.
-func (s *session) shutdown(server *http.Server) {
-	// A fresh context, because by the time we are here the caller's is usually already
-	// cancelled, and a drain that inherited that cancellation would not drain.
-	ctx, cancel := context.WithTimeout(context.Background(), drainGrace)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		// The grace window expired with work still running. Ending it is the honest move:
-		// the alternative is a command that will not exit when asked twice.
-		_ = server.Close()
-	}
-}
-
 // finish records the first reason to stop, and only the first.
 func (s *session) finish(err error) {
 	s.once.Do(func() {
@@ -202,9 +261,31 @@ func (s *session) handler() http.Handler {
 	return mux
 }
 
+// headerKey is how a delivery's headers reach the code that handles it.
+//
+// The SDK hands OnEvent a context and an event, which is the right interface for a receiver that
+// only wants the event. This program also has to record the signature and forward the delivery
+// with its original headers intact, so the request's headers ride along on the context rather
+// than being reconstructed. Reconstructing would mean recomputing a signature we had already been
+// given, and a recomputed signature is not evidence of anything.
+type headerKey struct{}
+
+// headersFrom reads the delivery headers back out of a context.
+func headersFrom(ctx context.Context) http.Header {
+	headers, _ := ctx.Value(headerKey{}).(http.Header)
+	if headers == nil {
+		return http.Header{}
+	}
+	return headers
+}
+
 // route sends each request to the code that should answer it.
 func (s *session) route(sdk mailkube.WebhookHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			r = r.WithContext(context.WithValue(r.Context(), headerKey{}, r.Header))
+		}
+
 		switch {
 		case r.Method == http.MethodGet:
 			// The handshake is the SDK's, unchanged. It is the same code a customer's own
@@ -261,22 +342,49 @@ func (s *session) deliverUnverified(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// admission is what the bookkeeping decided about one delivery.
+type admission struct {
+	// handle reports whether anything further should be done with it.
+	handle bool
+	// repeat reports whether it was a redelivery of something already handled.
+	repeat bool
+	// at is when it arrived.
+	at time.Time
+}
+
 // accept handles one delivery that got this far.
+//
+// Two stages, and the split is the point: the bookkeeping happens under the mutex, and the side
+// effects happen outside it. Writing a file and posting to a local application are both slow
+// enough that holding the render lock across them would let one sluggish target stall every other
+// delivery arriving at the same moment.
+func (s *session) accept(ctx context.Context, event *mailkube.Event) error {
+	admitted, err := s.admit(event)
+	if err != nil || !admitted.handle {
+		return err
+	}
+	return s.act(ctx, event, admitted)
+}
+
+// admit does the counting and the rendering, under the mutex.
 //
 // The order is filter, then deduplicate, then count. Filtering first is what keeps the summary
 // truthful: "1 duplicate" should mean a repeat of something this run actually handled, not a
 // repeat of something it was never interested in.
-func (s *session) accept(_ context.Context, event *mailkube.Event) error {
+func (s *session) admit(event *mailkube.Event) (admission, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	at := s.deps.Clock.Now()
 	if len(s.cfg.filter) > 0 && !s.cfg.filter[event.Type] {
 		s.counts.filtered++
-		return nil
+		return admission{}, nil
 	}
 	if s.repeated(event, at) {
-		return nil
+		// A redelivery goes no further unless it was asked for. The local application
+		// already has this one, and sending it again is the duplicate that deduplicating
+		// exists to absorb.
+		return admission{handle: s.o.forwardDups, repeat: true, at: at}, nil
 	}
 
 	s.counts.events++
@@ -284,12 +392,70 @@ func (s *session) accept(_ context.Context, event *mailkube.Event) error {
 		// Nothing left to report with, and nothing worth continuing for: this command's
 		// whole job is to write these events somewhere.
 		s.finish(err)
-		return err
+		return admission{}, err
 	}
 	if s.o.exitAfter > 0 && s.counts.events >= s.o.exitAfter {
 		s.finish(nil)
 	}
+	return admission{handle: true, at: at}, nil
+}
+
+// act performs the side effects: the capture file and the forward.
+func (s *session) act(ctx context.Context, event *mailkube.Event, admitted admission) error {
+	headers := headersFrom(ctx)
+
+	// A redelivery is not recorded even when it is forwarded. The file is a record of the
+	// events that happened, and the platform trying one of them fifteen times is not fifteen
+	// events.
+	if s.capture != nil && !admitted.repeat {
+		if err := s.capture.write(capture(event,
+			admitted.at.UTC().Format(time.RFC3339),
+			headers.Get(headerDeliverySignature),
+			s.cfg.secret != "")); err != nil {
+			// A capture that quietly stopped recording is worse than one that stops the
+			// run: the whole reason to record is to have the events afterwards.
+			s.finish(err)
+			return err
+		}
+	}
+
+	if s.relay == nil {
+		return nil
+	}
+	if s.o.forwardSync {
+		s.relayTo(ctx, event, headers)
+		return nil
+	}
+
+	// Asynchronous by default. The platform allows a delivery ten seconds and disables an
+	// endpoint whose first-attempt acceptance falls below sixty per cent over a day, so a slow
+	// local application blocking the acknowledgement would eventually switch off a real
+	// endpoint. WithoutCancel because the request's own context is cancelled the moment this
+	// handler returns, which is immediately.
+	s.inFlight.Add(1)
+	go func() {
+		defer s.inFlight.Done()
+		s.relayTo(context.WithoutCancel(ctx), event, headers)
+	}()
 	return nil
+}
+
+// relayTo re-posts one delivery and reports what the target said.
+func (s *session) relayTo(ctx context.Context, event *mailkube.Event, headers http.Header) {
+	result := s.relay.send(ctx, event.Raw, headers)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	badge := s.deps.Caps.Glyphs.OK
+	if result.ok() {
+		s.counts.forwarded++
+	} else {
+		s.counts.forwardFailures++
+		badge = s.deps.Caps.Glyphs.Cross
+	}
+	s.note(badge, s.deps.Clock.Now(), output.Sanitize(event.Type),
+		shorten(output.Sanitize(detailOf(event.Data).emailID)), result.describe(s.cfg.forward))
 }
 
 // repeated reports whether this delivery has already been handled, and says so if it has.

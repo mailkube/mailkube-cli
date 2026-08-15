@@ -1,0 +1,26 @@
+{
+  "type": "email.bounced",
+  "created_at": "2026-08-15T14:02:40Z",
+  "data": {
+    "email_id": "9f3b2c14-7d8e-4a11-9c2f-8e5b1d0a3c77",
+    "created_at": "2026-08-15T14:02:40Z",
+    "domain": "acme.example",
+    "subject": "Welcome",
+    "to": [
+      "alice@example.com"
+    ],
+    "from": "Acme <hello@acme.example>",
+    "tags": [
+      {
+        "name": "campaign",
+        "value": "welcome"
+      }
+    ],
+    "bounce": {
+      "recipient": "alice@example.com",
+      "timestamp": "2026-08-15T14:04:02Z",
+      "code": 550,
+      "reason": "Mailbox does not exist"
+    }
+  }
+}

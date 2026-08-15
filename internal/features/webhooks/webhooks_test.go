@@ -32,6 +32,11 @@ type listener struct {
 	code        errs.Code
 	done        chan struct{}
 	cancel      context.CancelFunc
+
+	// client is this listener's own, never the shared default. httptest.Server.Close calls
+	// CloseIdleConnections on the default transport, so one test tearing down a forward
+	// target would break a request another test had in flight.
+	client *http.Client
 }
 
 // start runs the listener in the background and waits until it is accepting connections.
@@ -59,7 +64,10 @@ func start(t *testing.T, opts testsupport.TestOptions, args ...string) *listener
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
-	run := &listener{out: out, errOut: errOut, done: make(chan struct{}), cancel: cancel}
+	run := &listener{
+		out: out, errOut: errOut, done: make(chan struct{}), cancel: cancel,
+		client: &http.Client{Timeout: 10 * time.Second},
+	}
 
 	cmd := f.Command(deps)
 	cmd.SetArgs(append([]string{"listen"}, args...))
@@ -131,7 +139,7 @@ func (l *listener) post(t *testing.T, id, timestamp, signature, body, path strin
 		req.Header.Set("X-Webhook-Sig", signature)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := l.client.Do(req)
 	if err != nil {
 		t.Fatalf("posting the delivery: %v", err)
 	}
@@ -149,7 +157,7 @@ func (l *listener) probe(t *testing.T, query string) (int, string) {
 	if err != nil {
 		t.Fatalf("building the probe: %v", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := l.client.Do(req)
 	if err != nil {
 		t.Fatalf("probing: %v", err)
 	}
