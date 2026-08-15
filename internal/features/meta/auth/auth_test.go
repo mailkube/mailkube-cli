@@ -222,7 +222,7 @@ func TestTheGuidedSetupWalksBothCredentials(t *testing.T) {
 	}})
 
 	cmd := auth.NewInit(credentials).Command(deps)
-	cmd.SetArgs(nil)
+	cmd.SetArgs(testsupport.Args(nil))
 	cmd.SetOut(out)
 	cmd.SetErr(errOut)
 	if err := cmd.Execute(); err != nil {
@@ -404,7 +404,7 @@ func runCommand(t *testing.T, f *auth.Feature, deps *feature.Deps, args ...strin
 	t.Helper()
 
 	cmd := f.Command(deps)
-	cmd.SetArgs(args)
+	cmd.SetArgs(testsupport.Args(args))
 	cmd.SetOut(deps.IO.Out)
 	cmd.SetErr(deps.IO.ErrOut)
 	return cmd.Execute()

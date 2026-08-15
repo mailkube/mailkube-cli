@@ -201,7 +201,10 @@ func TestAnUnreadableConfigIsReportedAndNeverRepaired(t *testing.T) {
 	if got.code != errs.CodeConfig {
 		t.Errorf("exit code = %d, want %d", got.code, errs.CodeConfig)
 	}
-	if !strings.Contains(got.errOut, path) {
+	// Decoded, not matched against the raw stream. The report is JSON, so on a platform whose
+	// separator is a backslash the path arrives escaped and a substring search for the path as
+	// spelled here finds nothing.
+	if !strings.Contains(errorMessage(t, got.errOut), path) {
 		t.Errorf("the report does not name the file: %q", got.errOut)
 	}
 

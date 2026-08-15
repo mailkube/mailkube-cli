@@ -116,3 +116,21 @@ func testCaps(override *output.Caps) output.Caps {
 		Glyphs:  output.UnicodeGlyphs(),
 	}
 }
+
+// Args normalises a command's arguments so cobra uses them rather than the process's.
+//
+// This exists because of one cobra behaviour that is easy to hit and hard to read: SetArgs stores
+// the slice as given, and Execute falls back to os.Args[1:] when that slice is nil. In a test
+// binary os.Args carries the testing framework's own flags, so a helper that passes a variadic
+// straight through runs the command against `-test.coverprofile=...` the moment a caller invokes
+// it with no arguments.
+//
+// It fails where it is least convenient. The flags the framework passes differ by platform, so
+// the same test can pass on one operating system and fail on another for a reason that appears
+// nowhere in the test.
+func Args(args []string) []string {
+	if args == nil {
+		return []string{}
+	}
+	return args
+}

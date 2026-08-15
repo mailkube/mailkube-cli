@@ -16,7 +16,7 @@ func run(t *testing.T, deps *feature.Deps, args ...string) error {
 	t.Helper()
 
 	cmd := config.New().Command(deps)
-	cmd.SetArgs(args)
+	cmd.SetArgs(testsupport.Args(args))
 	cmd.SetOut(deps.IO.Out)
 	cmd.SetErr(deps.IO.ErrOut)
 	return cmd.Execute()

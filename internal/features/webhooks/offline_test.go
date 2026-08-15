@@ -39,7 +39,7 @@ func invoke(t *testing.T, opts testsupport.TestOptions, args ...string) (errs.Co
 	}
 
 	cmd := f.Command(deps)
-	cmd.SetArgs(args)
+	cmd.SetArgs(testsupport.Args(args))
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 	cmd.SilenceUsage = true

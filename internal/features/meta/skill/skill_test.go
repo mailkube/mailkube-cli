@@ -1,6 +1,7 @@
 package skill_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +19,7 @@ func run(t *testing.T, deps *feature.Deps, args ...string) error {
 	t.Helper()
 
 	cmd := skill.New().Command(deps)
-	cmd.SetArgs(args)
+	cmd.SetArgs(testsupport.Args(args))
 	cmd.SetOut(deps.IO.Out)
 	cmd.SetErr(deps.IO.ErrOut)
 	return cmd.Execute()
@@ -144,24 +145,45 @@ func TestShowNamesTheReferencesThatExist(t *testing.T) {
 func TestPathHonoursTheFlagThenTheEnvironment(t *testing.T) {
 	t.Parallel()
 
+	// Directories that exist, on this platform's own terms. The command answers with an absolute
+	// path, so a literal like "/from/env" would be resolved against the current drive on Windows
+	// and reported back with separators the assertion below does not spell.
+	fromEnv, fromFlag := t.TempDir(), t.TempDir()
+
 	deps, out, _ := testsupport.TestDeps(t, testsupport.TestOptions{
-		Env: map[string]string{"MAILKUBE_SKILL_DIR": "/from/env"},
+		Env: map[string]string{"MAILKUBE_SKILL_DIR": fromEnv},
 	})
 
 	if err := run(t, deps, "path"); err != nil {
 		t.Fatalf("path: %v", err)
 	}
-	if !strings.Contains(out.String(), "/from/env") {
-		t.Errorf("the environment did not decide the directory:\n%s", out.String())
+	if got := reportedPath(t, out.String()); got != fromEnv {
+		t.Errorf("the environment did not decide the directory: %q, want %q", got, fromEnv)
 	}
 
 	out.Reset()
-	if err := run(t, deps, "path", "--dir", "/from/flag"); err != nil {
+	if err := run(t, deps, "path", "--dir", fromFlag); err != nil {
 		t.Fatalf("path --dir: %v", err)
 	}
-	if !strings.Contains(out.String(), "/from/flag") {
-		t.Errorf("the flag did not beat the environment:\n%s", out.String())
+	if got := reportedPath(t, out.String()); got != fromFlag {
+		t.Errorf("the flag did not beat the environment: %q, want %q", got, fromFlag)
 	}
+}
+
+// reportedPath decodes the path out of the JSON `skill path` writes.
+//
+// Decoding rather than substring-matching the stream: a Windows path is escaped inside JSON, so
+// the raw text never contains the path as any caller would spell it.
+func reportedPath(t *testing.T, stdout string) string {
+	t.Helper()
+
+	var got struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("decoding %q: %v", stdout, err)
+	}
+	return got.Path
 }
 
 func TestTheSkillWarnsAboutTheThingsAnAgentGetsWrong(t *testing.T) {

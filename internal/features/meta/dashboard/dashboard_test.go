@@ -25,7 +25,7 @@ func runCmd(t *testing.T, args ...string) (out, errOut string, code errs.Code) {
 		if cmd.Name() != wanted {
 			continue
 		}
-		cmd.SetArgs(args[1:])
+		cmd.SetArgs(testsupport.Args(args[1:]))
 		cmd.SetOut(outBuf)
 		cmd.SetErr(errBuf)
 		cmd.SilenceUsage = true

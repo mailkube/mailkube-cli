@@ -64,7 +64,7 @@ func run(t *testing.T, session *fakeSession, opts testsupport.TestOptions, args 
 	}
 
 	cmd := f.Command(deps)
-	cmd.SetArgs(args)
+	cmd.SetArgs(testsupport.Args(args))
 	cmd.SetOut(out)
 	cmd.SetErr(errOut)
 	cmd.SilenceUsage = true

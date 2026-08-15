@@ -17,7 +17,7 @@ func run(t *testing.T, args ...string) (out, errOut string, err error) {
 
 	deps, outBuf, errBuf := testsupport.TestDeps(t, testsupport.TestOptions{})
 	cmd := version.New().Command(deps)
-	cmd.SetArgs(args)
+	cmd.SetArgs(testsupport.Args(args))
 	cmd.SetOut(outBuf)
 	cmd.SetErr(errBuf)
 

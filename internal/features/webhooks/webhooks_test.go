@@ -33,9 +33,11 @@ type listener struct {
 	done        chan struct{}
 	cancel      context.CancelFunc
 
-	// client is this listener's own, never the shared default. httptest.Server.Close calls
-	// CloseIdleConnections on the default transport, so one test tearing down a forward
-	// target would break a request another test had in flight.
+	// client is this listener's own, and so is its transport. Both halves matter: a Client with
+	// no Transport uses the shared default one, and httptest.Server.Close calls
+	// CloseIdleConnections on that, so a parallel test tearing down a forward target breaks a
+	// request this one has in flight. Giving each listener a Client but leaving the Transport
+	// shared looks like isolation and provides none.
 	client *http.Client
 }
 
@@ -67,7 +69,7 @@ func start(t *testing.T, opts testsupport.TestOptions, args ...string) *listener
 	ctx, cancel := context.WithCancel(t.Context())
 	run := &listener{
 		out: out, errOut: errOut, done: make(chan struct{}), cancel: cancel,
-		client: &http.Client{Timeout: 10 * time.Second},
+		client: &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
 	}
 
 	cmd := f.Command(deps)

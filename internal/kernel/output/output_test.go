@@ -3,6 +3,7 @@ package output_test
 import (
 	"bytes"
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -67,18 +68,26 @@ func TestDetectHonoursTheColourConventions(t *testing.T) {
 func TestDetectResolvesTheGlyphSet(t *testing.T) {
 	t.Parallel()
 
+	// With no locale variable at all the answer is platform-specific, and deliberately so: a
+	// terminal that names no encoding is assumed to be UTF-8, except on Windows, where naming no
+	// encoding is the norm and the legacy code page genuinely cannot draw these glyphs. The two
+	// cases below that say nothing about a locale take that answer; every other case states an
+	// encoding and means the same thing everywhere.
+	unstated := runtime.GOOS != "windows"
+
 	tests := []struct {
 		name string
 		env  map[string]string
 		want bool
 	}{
-		{"nothing said", nil, true},
+		{"nothing said", nil, unstated},
+		{"windows terminal announces itself", map[string]string{"WT_SESSION": "1"}, true},
 		{"utf-8 locale", map[string]string{"LANG": "en_GB.UTF-8"}, true},
 		{"utf8 locale", map[string]string{"LC_ALL": "C.utf8"}, true},
 		{"posix locale", map[string]string{"LANG": "C"}, false},
 		{"latin-1 locale", map[string]string{"LC_CTYPE": "en_US.ISO8859-1"}, false},
 		{"forced ascii", map[string]string{"LANG": "en_GB.UTF-8", "MAILKUBE_ASCII": "1"}, false},
-		{"ascii set to zero is not a force", map[string]string{"MAILKUBE_ASCII": "0"}, true},
+		{"ascii set to zero is not a force", map[string]string{"MAILKUBE_ASCII": "0"}, unstated},
 	}
 
 	for _, tc := range tests {

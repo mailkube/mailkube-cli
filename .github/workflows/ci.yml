@@ -44,9 +44,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # check-latest is what stops this being a race with the runner image. Without it, setup-go
+      # reuses whatever patch release the image happens to have cached, so a Go security release
+      # leaves `vuln` red against a standard library that was fixed days ago, and the release job
+      # would build with the same superseded toolchain.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go-version }}
+          check-latest: true
           cache: true
 
       - name: Download modules
@@ -112,6 +117,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.25"
+          check-latest: true
           cache: true
       - name: Surface parity
         run: ./scripts/check-surface.sh
@@ -141,6 +147,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.25"
+          check-latest: true
           cache: true
 
       # Every shell script, not only the installer: the release pipeline runs the ones under
@@ -171,6 +178,13 @@ jobs:
   vuln:
     # Reachability-based, so it reports vulnerabilities in code this binary actually calls rather
     # than in every package the module graph mentions. That is what makes it usable as a gate.
+    #
+    # Most findings here will be in the standard library rather than in a dependency, because the
+    # dependency list is short and the standard library is most of what this program calls. The
+    # fix for one of those is a newer Go patch release, not a change to this repository: with
+    # check-latest set, a red run means the release exists and the runner has not been offered it
+    # yet, and it goes green on its own within about a day. Do not silence it, and do not pin
+    # around it.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -178,6 +192,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.25"
+          check-latest: true
           cache: true
       - name: Vulnerability scan (govulncheck)
         run: |
@@ -201,6 +216,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.25"
+          check-latest: true
           cache: true
 
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3

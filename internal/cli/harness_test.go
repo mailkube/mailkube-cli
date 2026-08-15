@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,4 +94,23 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("reading %s: %v", path, err)
 	}
 	return string(content)
+}
+
+// errorMessage decodes the message out of the JSON error envelope on the error stream.
+//
+// Decoding rather than searching the raw text: the envelope is JSON, so a value containing a
+// backslash arrives escaped, and a path spelled the way this platform spells it appears nowhere
+// in the stream. Asserting on the decoded field is also the level a caller works at.
+func errorMessage(t *testing.T, errOut string) string {
+	t.Helper()
+
+	var envelope struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(errOut), &envelope); err != nil {
+		t.Fatalf("decoding the error envelope %q: %v", errOut, err)
+	}
+	return envelope.Error.Message
 }
