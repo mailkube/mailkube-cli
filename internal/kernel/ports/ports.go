@@ -11,6 +11,7 @@ package ports
 
 import (
 	"context"
+	"iter"
 
 	mailkube "github.com/mailkube/mailkube-go"
 )
@@ -19,4 +20,37 @@ import (
 type EmailSender interface {
 	// Send submits a message and returns what the server recorded about it.
 	Send(ctx context.Context, params mailkube.SendEmailParams) (*mailkube.Email, error)
+}
+
+// ScheduleReader reads the scheduled-email collection.
+//
+// Reading and writing are separate interfaces because the commands are separate: `list` and
+// `get` cannot cancel anything, and a fake for either is two methods rather than six.
+type ScheduleReader interface {
+	// List returns one page.
+	List(ctx context.Context, params mailkube.ScheduledEmailListParams) (*mailkube.ScheduledEmailPage, error)
+	// All walks every page, fetching lazily, so abandoning the loop early costs nothing.
+	All(ctx context.Context, params mailkube.ScheduledEmailListParams) iter.Seq2[*mailkube.ScheduledEmail, error]
+	// Get retrieves one scheduled email by id.
+	Get(ctx context.Context, emailID string) (*mailkube.ScheduledEmail, error)
+}
+
+// ScheduleWriter reschedules and cancels one scheduled email at a time.
+type ScheduleWriter interface {
+	// Update reschedules one email, optionally moving it into a batch.
+	Update(
+		ctx context.Context, emailID string, params mailkube.ScheduledEmailUpdateParams,
+	) (*mailkube.ScheduledEmail, error)
+	// Cancel cancels one email.
+	Cancel(ctx context.Context, emailID string) (*mailkube.CanceledScheduledEmail, error)
+}
+
+// BatchWriter reschedules and cancels a whole batch at once.
+type BatchWriter interface {
+	// Update reschedules every pending email in a batch.
+	Update(
+		ctx context.Context, batchID string, params mailkube.ScheduledEmailBatchUpdateParams,
+	) (*mailkube.ScheduledEmailBatchUpdate, error)
+	// Cancel cancels every pending email in a batch.
+	Cancel(ctx context.Context, batchID string) (*mailkube.ScheduledEmailBatchCancel, error)
 }

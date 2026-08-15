@@ -77,6 +77,9 @@ type Glyphs struct {
 	Handshake string
 	// Ellipsis marks a value that was shortened to fit.
 	Ellipsis string
+	// Dash stands in for a cell that has no value, so an empty column still reads as a
+	// column rather than as a gap someone forgot to fill.
+	Dash string
 	// Bullet separates parts of a reference line.
 	Bullet string
 }
@@ -85,7 +88,7 @@ type Glyphs struct {
 func UnicodeGlyphs() Glyphs {
 	return Glyphs{
 		OK: "✓", Cross: "✗", Warn: "⚠", Dup: "↻", Handshake: "🤝",
-		Ellipsis: "…", Bullet: "·",
+		Ellipsis: "…", Bullet: "·", Dash: "—",
 	}
 }
 
@@ -97,7 +100,7 @@ func UnicodeGlyphs() Glyphs {
 func ASCIIGlyphs() Glyphs {
 	return Glyphs{
 		OK: "[ok]", Cross: "[x]", Warn: "[!]", Dup: "[dup]", Handshake: "[hs]",
-		Ellipsis: "...", Bullet: "-",
+		Ellipsis: "...", Bullet: "-", Dash: "-",
 	}
 }
 

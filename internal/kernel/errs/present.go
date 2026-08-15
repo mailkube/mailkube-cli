@@ -25,6 +25,13 @@ func Render(d Detail, cross string) []string {
 	head, rest := splitFirstLine(headline(d))
 	lines := []string{cross + " " + head}
 	for _, line := range rest {
+		// A blank line stays blank. Indenting it would put two spaces of trailing whitespace
+		// on it, which a golden file records, most editors strip on save, and no reader ever
+		// sees — so the file and the program disagree for a reason nobody can observe.
+		if line == "" {
+			lines = append(lines, "")
+			continue
+		}
 		lines = append(lines, indent+line)
 	}
 

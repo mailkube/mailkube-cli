@@ -22,6 +22,20 @@ type Feature interface {
 	Command(deps *Deps) *cobra.Command
 }
 
+// Multi is implemented by a feature contributing several top-level commands rather than one
+// subtree.
+//
+// It exists for the one shape a subtree cannot express: a set of sibling commands that are
+// siblings precisely because a user types them at the top level. The composition root prefers it
+// when a feature offers it, so Command still returns the feature's own primary command and
+// nothing is left dead.
+type Multi interface {
+	Feature
+	// Commands returns every top-level command this feature contributes, including the one
+	// Command returns.
+	Commands(deps *Deps) []*cobra.Command
+}
+
 // Documented is implemented by a feature that maps onto the published API surface, so the parity
 // gate can check that every endpoint is either reachable from a command or deliberately absent.
 type Documented interface {

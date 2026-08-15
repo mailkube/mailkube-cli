@@ -7,6 +7,7 @@ import (
 
 	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
+	"github.com/mailkube/mailkube-cli/internal/kernel/output"
 )
 
 // issueTracker is where a user reports a defect in this program.
@@ -43,13 +44,27 @@ func Run(deps *feature.Deps, args []string) (code int) {
 }
 
 // report renders a failure and returns its exit code.
+//
+// The failure is rendered in the format the caller asked for, on the error stream either way. A
+// script that set -o json and then had to parse an English paragraph out of stderr would have to
+// keep a second parser for exactly the case it least wants to guess at, so the machine formats
+// get the documented envelope: {"error": {name, message, statusCode, requestId}}.
 func report(deps *feature.Deps, err error) int {
 	detail := errs.Describe(err)
-	for _, line := range errs.Render(detail, deps.Caps.Glyphs.Cross) {
-		// If reporting fails there is nothing left to report it with, and the exit code still
-		// carries the outcome. Discarding the error explicitly says that is deliberate.
-		_, _ = fmt.Fprintln(deps.IO.ErrOut, line)
+
+	if deps.Format == output.Text {
+		for _, line := range errs.Render(detail, deps.Caps.Glyphs.Cross) {
+			// If reporting fails there is nothing left to report it with, and the exit
+			// code still carries the outcome. Discarding the error explicitly says that
+			// is deliberate.
+			_, _ = fmt.Fprintln(deps.IO.ErrOut, line)
+		}
+		return int(detail.Code)
 	}
+
+	// --jq is deliberately not applied. It projects the payload, and a caller who asked for
+	// one field of a result should not silently receive one field of a failure instead.
+	_ = output.Render(deps.IO.ErrOut, deps.Format, deps.Caps, errs.Envelope(detail))
 	return int(detail.Code)
 }
 

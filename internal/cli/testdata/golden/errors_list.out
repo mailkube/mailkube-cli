@@ -1,0 +1,43 @@
+API error names:
+  application_error               The platform failed to handle the request.
+  body_content_rejected           The message body was rejected by the content scan.
+  browser_not_allowed             The request came from a browser, which cannot hold an API key safely.
+  concurrent_idempotent_requests  Another request with the same idempotency key is still in flight.
+  from_domain_not_allowed         The from address is not on a domain this API key can send from.
+  invalid_api_key                 The API key was not accepted.
+  invalid_attachment              An attachment could not be read.
+  invalid_from_address            The from address is not a valid address.
+  invalid_idempotency_key         The idempotency key is not in an acceptable form.
+  invalid_idempotent_request      This idempotency key was already used for a different message.
+  invalid_request_body            The request body was not readable as JSON.
+  link_reputation_blocked         A link in the message is on a host with poor reputation.
+  max_message_size_exceeded       The message is larger than your plan allows.
+  max_recipients_exceeded         The message names more recipients than your plan allows.
+  method_not_allowed              The endpoint does not accept that HTTP method.
+  missing_required_field          A required field was absent.
+  missing_required_variable       The template needs a variable the request did not supply.
+  missing_user_agent              The request carried no User-Agent.
+  not_acceptable                  The request asked for a representation the endpoint cannot produce.
+  quota_exceeded                  Your organisation's message quota for the current period is exhausted.
+  rate_limit_exceeded             Requests are arriving faster than your plan allows.
+  scheduled_email_not_found       No scheduled email has that id.
+  scheduled_email_not_pending     That scheduled email is no longer pending, so it cannot be changed.
+  scheduling_not_included         Scheduled sending is not included in your plan.
+  template_not_found              No template has that id.
+  template_not_published          The template exists but has no published version to render.
+  topic_disabled                  That topic exists but is switched off.
+  topic_not_found                 No topic with that slug exists on the sending domain.
+  unsupported_media_type          The request's content type is not one the endpoint accepts.
+  validation_error                The request was well-formed but a field failed validation.
+
+SMTP reply codes:
+  421        The service is not available and the connection is closing.
+  450        The mailbox was unavailable, temporarily.
+  452        The server has insufficient storage to accept the message now.
+  454 4.7.0  Authentication was refused temporarily, usually because it is being throttled.
+  535 5.7.8  The username or password was rejected.
+  550        The mailbox was unavailable, permanently.
+  552        The message exceeded a size limit.
+  554        The transaction failed, and the server will not accept this message.
+
+  Explain one with `mailkube errors explain <name>`.

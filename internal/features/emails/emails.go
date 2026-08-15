@@ -52,6 +52,14 @@ func (*Feature) HelpEntries() []feature.Entry {
 	}}
 }
 
+// SurfaceMapping implements feature.Documented.
+//
+// One operation, which is the whole of what this feature covers: a send. The read-back verbs this
+// module answers are not operations, because there is no endpoint behind them by design.
+func (*Feature) SurfaceMapping() []string {
+	return []string{"POST /emails"}
+}
+
 // Command implements feature.Feature.
 func (f *Feature) Command(deps *feature.Deps) *cobra.Command {
 	cmd := &cobra.Command{
@@ -63,6 +71,7 @@ func (f *Feature) Command(deps *feature.Deps) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(f.sendCmd(deps))
+	cmd.AddCommand(f.readBackCmds()...)
 	return cmd
 }
 

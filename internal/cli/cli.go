@@ -65,6 +65,13 @@ func NewRootCmd(deps *feature.Deps) *cobra.Command {
 	installHelp(root, deps)
 
 	for _, f := range Registry() {
+		// A feature normally owns one subtree. The exception is a set of sibling commands
+		// that are siblings because a user types them at the top level, which no subtree can
+		// express; those features say so, and this is the one place that difference lands.
+		if multi, ok := f.(feature.Multi); ok {
+			root.AddCommand(multi.Commands(deps)...)
+			continue
+		}
 		root.AddCommand(f.Command(deps))
 	}
 

@@ -38,9 +38,13 @@ golden: ## Regenerate every golden file — then READ THE DIFF before committing
 docs: ## Run the governance gate (every .rules/*.md indexed in AGENTS.md)
 	@./scripts/check-rule-index.sh
 
+.PHONY: surface
+surface: ## Run the surface-parity gate (error catalogue and feature mappings)
+	@./scripts/check-surface.sh
+
 .PHONY: dry
 dry: ## Run the duplication gate
 	@npx --yes jscpd@4 --config .jscpd.json .
 
 .PHONY: check
-check: lint test docs ## Everything a pull request must pass
+check: lint test docs surface ## Everything a pull request must pass

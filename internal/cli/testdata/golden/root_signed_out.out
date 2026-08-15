@@ -6,16 +6,19 @@ USAGE
   mailkube <command> [flags]
 
 SEND
-  emails send  Send an email
+  emails send       Send an email
+  scheduled-emails  List, reschedule and cancel scheduled sends
 
 SETUP
-  init         Guided first-time setup
-  auth login   Store credentials
-  config       Manage profiles and settings
-  doctor       Diagnose your environment
-  skill        Install the agent skill for coding assistants
-  topic        Long-form help topics — run `mailkube topic` to list them
-  version      Show the CLI and SDK versions
+  init              Guided first-time setup
+  auth login        Store credentials
+  config            Manage profiles and settings
+  dashboard         Show what is managed in the dashboard, and where
+  doctor            Diagnose your environment
+  errors explain    Explain a Mailkube error code
+  skill             Install the agent skill for coding assistants
+  topic             Long-form help topics — run `mailkube topic` to list them
+  version           Show the CLI and SDK versions
 
   Run `mailkube <command> --help` for details.
   Docs: https://docs.mailkube.com/cli

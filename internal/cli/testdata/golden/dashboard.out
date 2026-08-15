@@ -1,0 +1,12 @@
+Managed in the dashboard:
+
+  domains           Domain setup and DNS verification            https://app.mailkube.com/domain/setup
+  api-keys          API keys                                     https://app.mailkube.com/domain/credentials#api
+  smtp-credentials  SMTP credentials                             https://app.mailkube.com/domain/credentials#smtp
+  webhooks          Webhook endpoints and their signing secrets  https://app.mailkube.com/domain/webhooks
+  templates         Saved templates                              https://app.mailkube.com/domain/templates
+  suppressions      Suppressed recipients                        https://app.mailkube.com/domain/suppressions
+  audience          Contacts, segments and topics                https://app.mailkube.com/domain/audience
+  logs              Delivery history                             https://app.mailkube.com/domain/logs
+
+The CLI covers sending, scheduled sends and the local webhook loop.

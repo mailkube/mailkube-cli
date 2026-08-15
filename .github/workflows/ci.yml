@@ -88,6 +88,20 @@ jobs:
       - name: Copy-paste detection (jscpd)
         run: npx --yes jscpd@4 --config .jscpd.json .
 
+  surface:
+    # Parity gate: the CLI's coverage of the published surface, checked against the SDK's own
+    # source rather than against a list copied into this repository.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache: true
+      - name: Surface parity
+        run: ./scripts/check-surface.sh
+
   docs:
     # Governance gate: every .rules/*.md must be indexed in AGENTS.md.
     runs-on: ubuntu-latest

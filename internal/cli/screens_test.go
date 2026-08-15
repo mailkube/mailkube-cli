@@ -43,6 +43,10 @@ func TestScreens(t *testing.T) {
 		{name: "auth_status", args: []string{"auth", "status", "-o", "text"}, signedIn: true},
 		{name: "doctor_offline", args: []string{"doctor", "--offline", "-o", "text"}},
 		{name: "commands_paths", args: []string{"commands", "-o", "text"}},
+		{name: "dashboard", args: []string{"dashboard", "-o", "text"}},
+		{name: "errors_explain", args: []string{"errors", "explain", "quota_exceeded", "-o", "text"}},
+		{name: "errors_explain_smtp", args: []string{"errors", "explain", "535", "-o", "text"}},
+		{name: "errors_list", args: []string{"errors", "explain", "--list", "-o", "text"}},
 
 		{name: "emails_skeleton", args: []string{"emails", "send", "--generate-skeleton", "-o", "text"}},
 		{
@@ -60,7 +64,7 @@ func TestScreens(t *testing.T) {
 			args: []string{
 				"emails", "send", "--dry-run",
 				"--from", "hello@acme.com", "--to", "alice@example.com",
-				"--subject", "Hi", "--text", "yo", "--tag", "campaign name=x",
+				"--subject", "Hi", "--text", "yo", "--tag", "campaign name=x", "-o", "text",
 			},
 			wantCode: errs.CodeValidation,
 		},
@@ -69,37 +73,57 @@ func TestScreens(t *testing.T) {
 			// a credential rather than the SDK constructor option the library would cite.
 			name: "error_no_credential",
 			args: []string{
-				"emails", "send",
+				"emails", "send", "-o", "text",
 				"--from", "hello@acme.com", "--to", "alice@example.com",
 				"--subject", "Hi", "--text", "yo",
 			},
 			wantCode: errs.CodeAuth,
 		},
 		{
+			// Not a missing feature. Mailkube does not serve past state, and the verb
+			// exists so that someone looking for it is told that rather than left to
+			// conclude the CLI is incomplete.
+			name:     "error_no_read_back",
+			args:     []string{"emails", "get", "9f3b2c14", "-o", "text"},
+			wantCode: errs.CodeUsage,
+		},
+		{
+			name:     "error_managed_elsewhere",
+			args:     []string{"domains", "verify", "acme.com", "-o", "text"},
+			wantCode: errs.CodeUsage,
+		},
+		{
+			// The documented envelope on the error stream, for a caller that asked for a
+			// machine format and would otherwise have to parse an English paragraph.
+			name:     "error_json_envelope",
+			args:     []string{"errors", "explain", "nonesuch", "-o", "json"},
+			wantCode: errs.CodeUsage,
+		},
+		{
 			name:     "error_unknown_command",
-			args:     []string{"contacts"},
+			args:     []string{"contacts", "-o", "text"},
 			wantCode: errs.CodeUsage,
 		},
 		{
 			name:     "error_unknown_setting",
-			args:     []string{"config", "get", "api_secret"},
+			args:     []string{"config", "get", "api_secret", "-o", "text"},
 			wantCode: errs.CodeUsage,
 		},
 		{
 			name:     "error_bare_smtp_username",
-			args:     []string{"config", "set", "smtp_user", "myapp01"},
+			args:     []string{"config", "set", "smtp_user", "myapp01", "-o", "text"},
 			wantCode: errs.CodeValidation,
 		},
 		{
 			name:     "error_password_as_argument",
-			args:     []string{"config", "set", "smtp_password", "hunter2"},
+			args:     []string{"config", "set", "smtp_password", "hunter2", "-o", "text"},
 			wantCode: errs.CodeUsage,
 		},
 		{
 			// Refusing rather than guessing is the contract: a command that cannot ask and
 			// has no answer must not invent one, and must name the flag that supplies it.
 			name:     "error_cannot_prompt",
-			args:     []string{"auth", "login"},
+			args:     []string{"auth", "login", "-o", "text"},
 			wantCode: errs.CodeUsage,
 		},
 	}

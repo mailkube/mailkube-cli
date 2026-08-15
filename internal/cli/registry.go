@@ -6,10 +6,13 @@ import (
 	"github.com/mailkube/mailkube-cli/internal/features/meta/commands"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/completion"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/config"
+	"github.com/mailkube/mailkube-cli/internal/features/meta/dashboard"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/doctor"
+	mkerrors "github.com/mailkube/mailkube-cli/internal/features/meta/errors"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/skill"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/topic"
 	"github.com/mailkube/mailkube-cli/internal/features/meta/version"
+	"github.com/mailkube/mailkube-cli/internal/features/scheduled"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 )
 
@@ -31,10 +34,13 @@ func Registry() []feature.Feature {
 
 	return []feature.Feature{
 		emails.New(),
+		scheduled.New(),
 		auth.NewInit(credentials),
 		credentials,
 		config.New(),
+		dashboard.New(),
 		doctor.New(),
+		mkerrors.New(),
 		skill.New(),
 		topic.New(),
 		version.New(),

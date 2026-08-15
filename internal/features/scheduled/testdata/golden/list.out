@@ -1,0 +1,6 @@
+ID        SCHEDULED AT          SUBJECT        RECIPIENTS          BATCH
+3a1f9c2d  2026-08-14 09:32 UTC  Reminder       alice@example.com   —
+7b2e4d81  2026-08-15 08:00 UTC  Weekly digest  bob@example.com +2  digest-w33
+9c04a1e7  2026-08-15 08:00 UTC  Weekly digest  dana@example.com    digest-w33
+
+3 of 51 · page 1 of 17   (--all walks every page)
