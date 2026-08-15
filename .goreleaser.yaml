@@ -192,11 +192,28 @@ scoops:
     license: Apache-2.0
 
 release:
-  # The GitHub Release already exists by the time this runs: the version is decided from the
-  # commit history and the release is created with the tag, then the artifacts are appended to
-  # it. `replace_existing_artifacts` is what makes re-running this job against a tag that is
-  # already published a no-op rather than a duplicate-upload error.
-  mode: append
+  # The release is drafted before this runs and published by it, in that order, because a
+  # published release cannot be added to. GitHub seals a release on publication: its assets and
+  # its tag are fixed from that moment, and an upload afterwards is refused outright. So the
+  # version is decided from the commit history and the notes are written into a DRAFT, this job
+  # fills that draft with every artifact, and publishing it is the last thing that happens.
+  #
+  # `use_existing_draft` is what points this at that draft. Without it the draft is passed over,
+  # the already-published release is found by tag instead, and every upload fails.
+  #
+  # The draft is matched by NAME, not by tag, so the name the notes are drafted under and the name
+  # below have to be the same string. Both sides spell it `v1.2.3` today; changing either alone
+  # means this job quietly stops finding the draft it is meant to fill.
+  use_existing_draft: true
+  name_template: "{{ .Tag }}"
+
+  # The notes are already written and are the changelog, so nothing is added to them here. This
+  # setting is about the release BODY rather than the artifacts, which is easy to misread.
+  mode: keep-existing
+
+  # Only reachable while the release is still a draft, which is exactly when it is needed: a
+  # publish that failed part-way left one behind, and the re-run replaces what it uploaded rather
+  # than failing on the duplicate.
   replace_existing_artifacts: true
   github:
     owner: mailkube
