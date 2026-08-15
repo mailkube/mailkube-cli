@@ -104,6 +104,10 @@ Each of these is a decision, not an omission. Reopen them with a reason, not a p
 - **No man page.** The only maintained way to generate one adds a markdown renderer to the
   dependency list for a page that `--help`, `topic` and the documentation site already cover.
 - **No auto-update, and no update check unless asked.** See above.
-- **No code signing for macOS or Windows yet.** The toolchain signs the macOS binaries well enough
-  to run on Apple Silicon, and the install script clears the download marker; a browser-downloaded
-  archive shows a prompt, which the installation page states.
+- **No code signing for macOS or Windows yet.** The toolchain ad-hoc signs the macOS binary well
+  enough to run, and the install script clears the download marker; a browser-downloaded archive
+  shows a prompt, which the installation page states.
+- **macOS is Apple Silicon only.** An Intel Mac builds from source with `go install`, which the
+  install script says when it is run on one. Shipping the second architecture would mean shipping
+  a binary the toolchain does not sign, so the signing story would have to become a sentence with
+  a condition in it rather than a fact.

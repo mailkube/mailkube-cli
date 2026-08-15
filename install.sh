@@ -58,12 +58,19 @@ detect_os() {
   esac
 }
 
-# macOS ships one archive that runs on both architectures, so the machine's own architecture does
-# not come into it there.
+# macOS builds are Apple Silicon only.
+#
+# `uname -m` cannot answer that on its own: a shell running under translation on an Apple Silicon
+# Mac reports x86_64, so asking it would turn away the exact machines this supports. The hardware
+# capability is the thing to ask about.
 detect_arch() {
   if [ "$1" = "darwin" ]; then
-    printf 'universal'
-    return
+    if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then
+      printf 'arm64'
+      return
+    fi
+    die "mailkube is built for Apple Silicon Macs. On an Intel Mac, build it from source:
+  go install github.com/mailkube/mailkube-cli/cmd/mailkube@latest"
   fi
   arch=$(uname -m)
   case "$arch" in

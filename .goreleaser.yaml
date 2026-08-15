@@ -40,22 +40,18 @@ builds:
         goarch: arm
       - goos: windows
         goarch: arm
-
-universal_binaries:
-  # One macOS download that runs on both architectures, so nobody has to know which Mac they have.
-  # `replace` drops the two single-architecture builds from the release rather than shipping three
-  # macOS archives that differ only in a detail the user cannot see.
-  - id: mailkube
-    replace: true
+      # macOS is Apple Silicon only. That also makes the signing story exact rather than
+      # conditional: the toolchain ad-hoc signs an arm64 build and does not sign an amd64 one, so
+      # a single-architecture macOS binary is signed, full stop, with no second slice that is
+      # correct while carrying no signature.
+      - goos: darwin
+        goarch: amd64
 
 archives:
   - id: mailkube
     ids: [mailkube]
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
-      {{- if eq .Arch "all" }}universal
-      {{- else }}{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
-      {{- end }}
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
     formats: [tar.gz]
     format_overrides:
       - goos: windows

@@ -79,9 +79,8 @@ jobs:
           mailkube errors explain quota_exceeded > /dev/null
 
       # Apple Silicon refuses to run an entirely unsigned binary, and the toolchain signs the
-      # arm64 build for exactly that reason. The architecture has to be named: without it the
-      # check reads whichever slice matches the machine running it, and the Intel slice is
-      # unsigned by design, so the same command would pass or fail depending on the runner.
+      # arm64 build for exactly that reason. macOS is Apple Silicon only here, so this reads one
+      # architecture and there is no second slice whose result could differ.
       #
       # The quarantine check is the other half. macOS refuses a marked binary with a message
       # that does not mention the mark, so an install that left one would look like a broken
@@ -89,8 +88,8 @@ jobs:
       - name: The macOS binary is signed and unmarked
         if: runner.os == 'macOS'
         run: |
-          codesign -v --arch arm64 "$(command -v mailkube)"
-          echo "OK: the arm64 slice carries a valid signature."
+          codesign -v "$(command -v mailkube)"
+          echo "OK: the binary carries a valid signature."
           if xattr -p com.apple.quarantine "$(command -v mailkube)" 2>/dev/null; then
             echo "The installed binary is marked as quarantined."
             exit 1
