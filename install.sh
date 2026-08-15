@@ -134,15 +134,15 @@ verify_signature() {
     return
   fi
 
-  download "${base}/checksums.txt.sig" checksums.txt.sig
-  download "${base}/checksums.txt.pem" checksums.txt.pem
+  download "${base}/checksums.txt.sigstore.json" checksums.txt.sigstore.json
 
   cosign verify-blob checksums.txt \
-    --signature checksums.txt.sig \
-    --certificate checksums.txt.pem \
+    --bundle checksums.txt.sigstore.json \
     --certificate-identity-regexp "$CERT_IDENTITY" \
     --certificate-oidc-issuer "$CERT_ISSUER" >/dev/null 2>&1 ||
-    die "Signature verification failed. Do not use this download."
+    die "Signature verification failed. Do not use this download.
+  The signature is a Sigstore bundle, which cosign reads from v3 onwards. If yours
+  is older, upgrading it is worth ruling out before treating this as tampering."
 
   say "✓ Signature verified"
 }
