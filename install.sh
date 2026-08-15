@@ -18,9 +18,14 @@ REPO="mailkube/mailkube-cli"
 RELEASES="https://github.com/${REPO}/releases"
 API="https://api.github.com/repos/${REPO}/releases/latest"
 
-# Keyless signatures are issued to the workflow that produced them, so the identity to trust is a
-# workflow in this repository, running on a tag, with a certificate from GitHub's own issuer.
-CERT_IDENTITY="^https://github.com/${REPO}/\.github/workflows/.+@refs/tags/"
+# Keyless signatures are issued to the workflow run that produced them, so the identity to trust
+# names that run: the publish workflow in this repository, on the default branch, with a
+# certificate from GitHub's own issuer. The release is cut by a push to that branch and the tag is
+# created during the run, so the certificate is issued against the branch and never against a tag.
+#
+# The trailing anchor is load-bearing. The publish workflow can also be started by hand from any
+# branch, and without the anchor a branch named `main-anything` would satisfy this.
+CERT_IDENTITY="^https://github\.com/${REPO}/\.github/workflows/publish\.yml@refs/heads/main$"
 CERT_ISSUER="https://token.actions.githubusercontent.com"
 
 say() { printf '%s\n' "$*"; }
@@ -136,13 +141,18 @@ verify_signature() {
 
   download "${base}/checksums.txt.sigstore.json" checksums.txt.sigstore.json
 
-  cosign verify-blob checksums.txt \
+  # cosign's own reason is printed before the verdict. Discarding it, as this used to, leaves every
+  # failure looking identical: a wrong identity, a stale bundle and a tampered file all render as
+  # the same four lines, and the one machine that did print the reason is the one that got fixed.
+  if ! reason=$(cosign verify-blob checksums.txt \
     --bundle checksums.txt.sigstore.json \
     --certificate-identity-regexp "$CERT_IDENTITY" \
-    --certificate-oidc-issuer "$CERT_ISSUER" >/dev/null 2>&1 ||
+    --certificate-oidc-issuer "$CERT_ISSUER" 2>&1); then
+    printf '%s\n' "$reason" | sed 's/^/  /' >&2
     die "Signature verification failed. Do not use this download.
   The signature is a Sigstore bundle, which cosign reads from v3 onwards. If yours
   is older, upgrading it is worth ruling out before treating this as tampering."
+  fi
 
   say "✓ Signature verified"
 }

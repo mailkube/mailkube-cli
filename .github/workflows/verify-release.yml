@@ -162,7 +162,10 @@ jobs:
         env:
           MAILKUBE_WEBHOOK_SECRET: 6f1d9ac0e4b74c2f8d3a5b6c7e8f90112233445566778899aabbccddeeff0011
         run: |
-          docker run --rm --name listener -d -p 4318:4318 \
+          # No --rm. The container exits by itself once --exit-after is satisfied, and a
+          # self-removing container takes its exit code and its logs with it, so everything below
+          # would be racing a container that is deleting itself.
+          docker run --name listener -d -p 4318:4318 \
             -e MAILKUBE_WEBHOOK_SECRET \
             "$IMAGE" webhooks listen --local --host 0.0.0.0 --exit-after 1 --exit-timeout 60s
 
@@ -179,9 +182,14 @@ jobs:
 
           # --exit-after 1 was satisfied, so the container exits 0 on its own. A non-zero status
           # here means the delivery never arrived or never verified.
-          docker wait listener || true
-          status=$(docker inspect listener --format '{{.State.ExitCode}}' 2>/dev/null || echo 0)
+          #
+          # docker wait blocks until it exits and prints the code, so it is the sole reader of the
+          # result and there is no second command to disagree with it. --exit-timeout bounds the
+          # wait. An unreadable status fails the step: the previous fallback defaulted it to zero,
+          # turning "could not tell" into "passed" on the one assertion this job exists to make.
+          status=$(docker wait listener)
           docker logs listener 2>&1 || true
+          docker rm -f listener >/dev/null 2>&1 || true
           [ "$status" = "0" ] || {
             echo "The listener exited ${status}."
             exit 1

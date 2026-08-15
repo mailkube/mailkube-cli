@@ -35,9 +35,15 @@ $InformationPreference = 'Continue'
 $Repo = 'mailkube/mailkube-cli'
 $Releases = "https://github.com/$Repo/releases"
 
-# Keyless signatures are issued to the workflow that produced them, so the identity to trust is a
-# workflow in this repository, running on a tag, with a certificate from GitHub's own issuer.
-$CertIdentity = "^https://github.com/$Repo/\.github/workflows/.+@refs/tags/"
+# Keyless signatures are issued to the workflow run that produced them, so the identity to trust
+# names that run: the publish workflow in this repository, on the default branch, with a
+# certificate from GitHub's own issuer. The release is cut by a push to that branch and the tag is
+# created during the run, so the certificate is issued against the branch and never against a tag.
+#
+# The trailing anchor is load-bearing, and is backtick-escaped because a bare $ before the closing
+# quote of an interpolating string reads as the start of a variable. The publish workflow can also
+# be started by hand from any branch, and without the anchor `main-anything` would satisfy this.
+$CertIdentity = "^https://github\.com/$Repo/\.github/workflows/publish\.yml@refs/heads/main`$"
 $CertIssuer = 'https://token.actions.githubusercontent.com'
 
 function Write-Step {
