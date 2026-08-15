@@ -12,6 +12,7 @@ import (
 	"github.com/mailkube/mailkube-cli/internal/features/meta/doctor"
 	"github.com/mailkube/mailkube-cli/internal/kernel/clock"
 	"github.com/mailkube/mailkube-cli/internal/kernel/configstore"
+	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 	"github.com/mailkube/mailkube-cli/internal/kernel/output"
 	"github.com/mailkube/mailkube-cli/internal/kernel/ports"
@@ -441,3 +442,78 @@ type fakeSession struct {
 func (f *fakeSession) Send(mksmtp.Message) error         { return nil }
 func (f *fakeSession) Capabilities() mksmtp.Capabilities { return f.caps }
 func (f *fakeSession) Close()                            { f.closed = true }
+
+func TestTheVerdictIsWhatMakesTheReportUsableInAScript(t *testing.T) {
+	t.Parallel()
+
+	// `mailkube doctor && deploy` is the reason this exists. A report that always exits 0
+	// tells that shell to carry on past a broken configuration, which is the one thing the
+	// command was run to prevent.
+	tests := []struct {
+		name   string
+		view   doctor.ReportView
+		strict bool
+		want   errs.Code
+		says   string
+	}{
+		{
+			name: "a clean report",
+			view: doctor.ReportView{},
+			want: errs.CodeOK,
+		},
+		{
+			// An unconfigured credential is a report, not a fault. Failing here would make
+			// the diagnostic unpassable for the many people who never use SMTP, and a
+			// check nobody can pass is a check everybody learns to ignore.
+			name: "warnings alone",
+			view: doctor.ReportView{Warnings: 2},
+			want: errs.CodeOK,
+		},
+		{
+			name:   "warnings under --strict",
+			view:   doctor.ReportView{Warnings: 2},
+			strict: true,
+			want:   errs.CodeConfig,
+			says:   "--strict",
+		},
+		{
+			name: "one failed check",
+			view: doctor.ReportView{Failures: 1, Warnings: 3},
+			want: errs.CodeConfig,
+			says: "1 check failed",
+		},
+		{
+			// One code for any number of failures. Deriving it from whichever check failed
+			// would mean picking one when several did, and the rule for picking would end
+			// up being the order the checks happen to run in.
+			name: "several failed checks",
+			view: doctor.ReportView{Failures: 3},
+			want: errs.CodeConfig,
+			says: "3 checks failed",
+		},
+		{
+			name:   "failures outrank --strict warnings",
+			view:   doctor.ReportView{Failures: 1, Warnings: 5},
+			strict: true,
+			want:   errs.CodeConfig,
+			says:   "1 check failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.view.Verdict(tt.strict)
+			if got := errs.CodeFor(err); got != tt.want {
+				t.Errorf("exit code = %d, want %d (%v)", got, tt.want, err)
+			}
+			if tt.says == "" {
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.says) {
+				t.Errorf("the verdict does not say %q: %v", tt.says, err)
+			}
+		})
+	}
+}

@@ -15,7 +15,7 @@ func TestRunInfersJSONWhenTheOutputIsNotATerminal(t *testing.T) {
 	// output without having to ask for it is the contract every script depends on.
 	var out, errOut bytes.Buffer
 
-	if code := run([]string{"version"}, strings.NewReader(""), &out, &errOut); code != 0 {
+	if code := run(t.Context(), []string{"version"}, strings.NewReader(""), &out, &errOut); code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
 	}
 	if !strings.HasPrefix(strings.TrimSpace(out.String()), "{") {
@@ -34,7 +34,7 @@ func TestRunReportsAFailureOnStderrAndLeavesStdoutEmpty(t *testing.T) {
 	// parser never yields a partial document.
 	var out, errOut bytes.Buffer
 
-	code := run([]string{"no-such-command"}, strings.NewReader(""), &out, &errOut)
+	code := run(t.Context(), []string{"no-such-command"}, strings.NewReader(""), &out, &errOut)
 
 	if code == 0 {
 		t.Error("an unknown command succeeded")

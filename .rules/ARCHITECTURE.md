@@ -34,9 +34,12 @@ depends on people remembering it is a diagram, not an architecture.
    tests a credential are using the same client. A second implementation of a wire format is how
    two of them start disagreeing.
 4. **`net/http` is denied outside four places**: `kernel/clientfactory` (which constructs the
-   `*http.Client` handed to the SDK), `kernel/tunnel`, `features/webhooks` (which serves a local
-   listener), and the `version` and `doctor` meta features (which probe). Anywhere else, an
-   `net/http` import means a REST call that went around the SDK.
+   `*http.Client` handed to the SDK), `features/webhooks` (which serves a local listener), and the
+   `version` and `doctor` meta features (which probe). Anywhere else, an `net/http` import means a
+   REST call that went around the SDK.
+5. **`net` itself is denied outside `features/webhooks` and `kernel/smtp`.** A bare socket is a
+   protocol being spoken, and this program speaks protocols in exactly two places: the listener
+   binds one, and submission dials one.
 
 `depguard` denies **direct** imports only. Pulling `net` in transitively through `net/http` is
 expected and is not a violation.

@@ -29,6 +29,9 @@ func TestScreens(t *testing.T) {
 		// subject is what happens when credentials exist.
 		signedIn bool
 		wantCode errs.Code
+		// verdict marks a command whose non-zero exit describes a document it still wrote
+		// in full, rather than a failure to write one.
+		verdict bool
 	}{
 		{name: "root_signed_out", args: nil},
 		{name: "root_signed_in", args: nil, signedIn: true},
@@ -42,6 +45,14 @@ func TestScreens(t *testing.T) {
 		{name: "auth_status_empty", args: []string{"auth", "status", "-o", "text"}},
 		{name: "auth_status", args: []string{"auth", "status", "-o", "text"}, signedIn: true},
 		{name: "doctor_offline", args: []string{"doctor", "--offline", "-o", "text"}},
+		{
+			// The verdict screen: --strict turns the two warnings an unconfigured machine
+			// reports into a reason to stop, and the report is still written in full.
+			name:     "doctor_strict",
+			args:     []string{"doctor", "--offline", "--strict", "-o", "text"},
+			wantCode: errs.CodeConfig,
+			verdict:  true,
+		},
 		{name: "commands_paths", args: []string{"commands", "-o", "text"}},
 		{name: "dashboard", args: []string{"dashboard", "-o", "text"}},
 		{name: "errors_explain", args: []string{"errors", "explain", "quota_exceeded", "-o", "text"}},
@@ -142,7 +153,7 @@ func TestScreens(t *testing.T) {
 			if got.code != tc.wantCode {
 				t.Errorf("exit code = %d, want %d\n%s", got.code, tc.wantCode, got.errOut)
 			}
-			assertGolden(t, tc.name, withStablePaths(got, opts.ConfigPath, fixedPath))
+			assertGolden(t, tc.name, withStablePaths(got, opts.ConfigPath, fixedPath), tc.verdict)
 		})
 	}
 }

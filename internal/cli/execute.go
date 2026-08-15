@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -16,13 +17,18 @@ const issueTracker = "https://github.com/mailkube/mailkube-cli/issues"
 // Run executes the command tree and returns the process exit code.
 //
 // Everything above this returns an error; this is the single point where one becomes an exit
-// code. It lives here rather than in main so that the whole path — including how a failure and a
-// crash are rendered — is exercised by the same tests that check every other screen. main's only
+// code. It lives here rather than in main so that the whole path, including how a failure and a
+// crash are rendered, is exercised by the same tests that check every other screen. main's only
 // remaining job is to build the real dependencies and end the process.
+//
+// The context is the process's stop signal, installed once in main and reaching every command
+// through cobra. A long-running command watches it and winds itself up; a short one never
+// notices it exists. Cancellation arrives as an ordinary error, so it is mapped to an exit code
+// by the same chain as everything else rather than by a handler that ends the process itself.
 //
 // The report goes to the error stream, never to the payload stream: on failure stdout stays
 // empty, so a caller piping the output into a parser never sees half a document.
-func Run(deps *feature.Deps, args []string) (code int) {
+func Run(ctx context.Context, deps *feature.Deps, args []string) (code int) {
 	defer func() {
 		if r := recover(); r != nil {
 			code = reportPanic(deps.IO.ErrOut, r, debug.Stack())
@@ -37,7 +43,7 @@ func Run(deps *feature.Deps, args []string) (code int) {
 	}
 	root.SetArgs(args)
 
-	if err := root.Execute(); err != nil {
+	if err := root.ExecuteContext(ctx); err != nil {
 		return report(deps, err)
 	}
 	return int(errs.CodeOK)

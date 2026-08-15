@@ -3,6 +3,7 @@ package doctor
 import (
 	"strconv"
 
+	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 	"github.com/mailkube/mailkube-cli/internal/kernel/output"
 )
@@ -41,6 +42,28 @@ func (v *ReportView) add(label string, f feature.Finding) {
 	case feature.StatusFail:
 		v.Failures++
 	case feature.StatusOK:
+	}
+}
+
+// Verdict is the report's own conclusion, as the error that carries the exit code.
+//
+// One code for any number of failed checks, rather than a code derived from whichever check
+// failed. A report can fail in several ways at once, so deriving would mean picking one, and the
+// rule for picking would end up being the order the checks happen to run in. Exit 5 says the
+// environment is not in a usable state; the rows say which part of it.
+//
+// The message names the count and points at the report rather than repeating it. Whoever is
+// reading this has the whole thing on screen already.
+func (v ReportView) Verdict(strict bool) error {
+	switch {
+	case v.Failures > 0:
+		return errs.Newf(errs.CodeConfig,
+			"%s above: this environment is not ready.", plural(v.Failures, "check failed", "checks failed"))
+	case strict && v.Warnings > 0:
+		return errs.Newf(errs.CodeConfig,
+			"%s above, and --strict counts them as failures.", plural(v.Warnings, "warning", "warnings"))
+	default:
+		return nil
 	}
 }
 
@@ -88,18 +111,21 @@ func badge(caps output.Caps, status string) string {
 func summary(v ReportView) string {
 	switch {
 	case v.Failures > 0:
-		return plural(v.Failures, "failure") + ", " + plural(v.Warnings, "warning") + "."
+		return plural(v.Failures, "failure", "failures") + ", " + plural(v.Warnings, "warning", "warnings") + "."
 	case v.Warnings > 0:
-		return plural(v.Warnings, "warning") + "."
+		return plural(v.Warnings, "warning", "warnings") + "."
 	default:
 		return "Everything checks out."
 	}
 }
 
-// plural renders a count with its noun, so the summary reads as a sentence.
-func plural(n int, noun string) string {
+// plural renders a count with its wording, so the summary reads as a sentence.
+//
+// Both forms are given rather than an "s" appended, because not every phrase here is a noun that
+// pluralises that way: "1 check failed" becomes "2 checks failed", not "2 check faileds".
+func plural(n int, singular, many string) string {
 	if n == 1 {
-		return "1 " + noun
+		return "1 " + singular
 	}
-	return strconv.Itoa(n) + " " + noun + "s"
+	return strconv.Itoa(n) + " " + many
 }

@@ -1,9 +1,26 @@
 // Package doctor implements `mailkube doctor`: a report on the environment.
 //
 // It is the command people run repeatedly when something is wrong, which decides two things
-// about it. It never sends anything — spending a send-rate slot per run is how a diagnostic
-// becomes the problem it was meant to diagnose — and it never fails on a warning: a report that
-// exits non-zero because SMTP is unconfigured would be useless to anyone who does not use SMTP.
+// about it. It never sends anything: spending a send-rate slot per run is how a diagnostic
+// becomes the problem it was meant to diagnose. And it never stops at the first problem, because
+// the whole picture is the point.
+//
+// # The exit code is a verdict on the report, not a failure to produce one
+//
+// A check that failed means this environment will not work, so the command says so in the one
+// place a script can read without parsing anything: `mailkube doctor && deploy` must not proceed
+// past a broken configuration. Failures exit 5, the precondition code, because that is exactly
+// what a failed check is.
+//
+// Warnings exit 0. A report that failed because SMTP is unconfigured would be useless to the
+// many people who do not use SMTP, and a diagnostic nobody can pass is a diagnostic everyone
+// learns to ignore. `--strict` is for the caller who does want a clean environment or nothing.
+//
+// The report is always written in full, on the payload stream, whatever the verdict. That is the
+// one place this command departs from the rule that a non-zero exit leaves stdout empty, and it
+// is deliberate: the rule exists so that a caller piping into a parser never sees half a
+// document, and this document is always whole. The exit code describes what is in it. `grep` and
+// `diff` answer the same way, for the same reason.
 package doctor
 
 import (
@@ -75,7 +92,7 @@ func (*Feature) HelpEntries() []feature.Entry {
 
 // Command implements feature.Feature.
 func (f *Feature) Command(deps *feature.Deps) *cobra.Command {
-	var offline bool
+	var offline, strict bool
 
 	cmd := &cobra.Command{
 		Use:   "doctor",
@@ -86,10 +103,17 @@ func (f *Feature) Command(deps *feature.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return deps.Emit(view)
+			// Emitted before the verdict is returned, and emitted whatever the verdict
+			// is. Someone whose environment is broken needs the report more than
+			// someone whose environment is fine.
+			if err := deps.Emit(view); err != nil {
+				return err
+			}
+			return view.Verdict(strict)
 		},
 	}
 	cmd.Flags().BoolVar(&offline, "offline", false, "skip the checks that need a network")
+	cmd.Flags().BoolVar(&strict, "strict", false, "treat warnings as failures, for a clean-environment gate")
 	return cmd
 }
 

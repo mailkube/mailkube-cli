@@ -79,6 +79,20 @@ linters:
             - pkg: net/smtp
               desc: "submission is spoken in kernel/smtp only — depend on ports.SMTPSubmitter instead"
 
+        # Bare `net` is a socket, opened or dialled directly. Exactly two packages have a
+        # reason to hold one: the listener, which must bind before it can promise to receive
+        # anything, and the submission client. Anywhere else, a socket is a protocol being
+        # spoken outside the two places this program speaks protocols.
+        sockets-live-in-two-places:
+          files:
+            - "$all"
+            - "!$test"
+            - "!**/internal/features/webhooks/**"
+            - "!**/internal/kernel/smtp/**"
+          deny:
+            - pkg: "net$"
+              desc: "a socket belongs in features/webhooks (the listener) or kernel/smtp (submission)"
+
         # net/http is for constructing an *http.Client to hand the SDK, serving the local
         # webhook listener, and two meta commands that probe. Anywhere else it is a REST call
         # that bypassed the SDK.
@@ -87,13 +101,12 @@ linters:
             - "$all"
             - "!$test"
             - "!**/internal/kernel/clientfactory/**"
-            - "!**/internal/kernel/tunnel/**"
             - "!**/internal/features/webhooks/**"
             - "!**/internal/features/meta/version/**"
             - "!**/internal/features/meta/doctor/**"
           deny:
             - pkg: net/http
-              desc: "call the API through the SDK; net/http is allowed only in clientfactory, tunnel, webhooks, version and doctor"
+              desc: "call the API through the SDK; net/http is allowed only in clientfactory, webhooks, version and doctor"
 
     # ── The testability seams ─────────────────────────────────────────────────────────────
     #

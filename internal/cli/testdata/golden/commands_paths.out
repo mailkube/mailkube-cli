@@ -48,3 +48,10 @@ mailkube suppressions
 mailkube templates
 mailkube topic
 mailkube version
+mailkube webhooks
+mailkube webhooks create
+mailkube webhooks delete
+mailkube webhooks get
+mailkube webhooks list
+mailkube webhooks listen
+mailkube webhooks update

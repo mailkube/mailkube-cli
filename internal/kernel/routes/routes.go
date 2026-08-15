@@ -9,7 +9,11 @@
 // missing page at the exact moment they are looking for the thing they were just told about.
 package routes
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
+)
 
 // dashboard and docs are the two hosts the CLI ever points a user at.
 const (
@@ -22,6 +26,23 @@ func Dashboard(path string) string { return dashboard + ensureLeadingSlash(path)
 
 // Docs returns an absolute documentation URL for a path.
 func Docs(path string) string { return docs + ensureLeadingSlash(path) }
+
+// Refer is the answer to a verb this CLI deliberately does not have.
+//
+// It lives here, beside the table it points into, because several surfaces give this answer: the
+// hidden commands that catch a wrong guess at the top level, and the subcommands of a command
+// that does exist but whose management verbs do not. Written twice, the two would eventually
+// name different pages, and both would be confidently wrong at the moment someone needed one.
+//
+// The wording states what this tool covers rather than what it lacks. A user who typed something
+// reasonable is being redirected, not corrected.
+func Refer(attempted string, area Area) error {
+	return errs.Usagef(
+		"%s is managed in the dashboard, not from the command line.\n\n"+
+			"  %s\n  %s\n\n"+
+			"The CLI covers sending, scheduled sends and the local webhook loop.",
+		attempted, area.Summary+":", area.URL())
+}
 
 // Area is one part of the product the dashboard owns.
 type Area struct {

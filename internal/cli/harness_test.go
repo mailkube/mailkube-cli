@@ -28,7 +28,7 @@ func run(t *testing.T, opts testsupport.TestOptions, args ...string) result {
 	t.Helper()
 
 	deps, out, errOut := testsupport.TestDeps(t, opts)
-	code := cli.Run(deps, args)
+	code := cli.Run(t.Context(), deps, args)
 	return result{out: out.String(), errOut: errOut.String(), code: errs.Code(code)}
 }
 
@@ -57,13 +57,19 @@ func configured(t *testing.T) (path string, env map[string]string) {
 // stdout is checked for emptiness on failure as a blanket rule rather than per test, because it
 // is the one guarantee every scripted caller depends on and the one a new command is most likely
 // to break without noticing.
-func assertGolden(t *testing.T, name string, got result) {
+//
+// verdict opts a case out of that check, and only `doctor` uses it. Its exit code reports on the
+// content of a document that is always written in full, the way `grep` and `diff` answer, rather
+// than reporting a failure to produce one. The rule exists so a caller piping into a parser never
+// sees half a document; that reasoning does not reach a document that is always whole. Opting out
+// is a per-case decision so the exception stays visible at the point it is taken.
+func assertGolden(t *testing.T, name string, got result, verdict bool) {
 	t.Helper()
 
 	golden.Assert(t, name+".out", []byte(got.out))
 	golden.Assert(t, name+".err", []byte(got.errOut))
 
-	if got.code != errs.CodeOK && strings.TrimSpace(got.out) != "" {
+	if got.code != errs.CodeOK && !verdict && strings.TrimSpace(got.out) != "" {
 		t.Errorf("a failing command wrote to stdout, which breaks the payload contract:\n%s", got.out)
 	}
 }

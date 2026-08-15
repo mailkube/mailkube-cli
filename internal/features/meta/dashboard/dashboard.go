@@ -13,7 +13,6 @@ package dashboard
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
 	"github.com/mailkube/mailkube-cli/internal/kernel/routes"
 )
@@ -94,16 +93,7 @@ func referral(name string, area routes.Area) *cobra.Command {
 		Args:               cobra.ArbitraryArgs,
 		FParseErrWhitelist: cobra.FParseErrWhitelist{UnknownFlags: true},
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return Refer(name, area)
+			return routes.Refer(name, area)
 		},
 	}
-}
-
-// Refer is the explanation, in one place so every surface says the same thing.
-func Refer(attempted string, area routes.Area) error {
-	return errs.Usagef(
-		"%s is managed in the dashboard, not from the command line.\n\n"+
-			"  %s\n  %s\n\n"+
-			"The CLI covers sending, scheduled sends and the local webhook loop.",
-		attempted, area.Summary+":", area.URL())
 }

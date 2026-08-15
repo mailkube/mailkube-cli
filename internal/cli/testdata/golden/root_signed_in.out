@@ -10,6 +10,7 @@ SEND
   scheduled-emails  List, reschedule and cancel scheduled sends
 
 DEVELOP
+  webhooks listen   Receive webhook events on your machine
   smtp test         Test SMTP connectivity and credentials
 
 SETUP

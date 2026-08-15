@@ -47,6 +47,12 @@ const (
 	EnvConfig       = "MAILKUBE_CONFIG"
 	EnvSMTPPassword = "MAILKUBE_SMTP_PASSWORD"
 	EnvSkillDir     = "MAILKUBE_SKILL_DIR"
+	// EnvWebhookSecret is the signing secret the local listener verifies deliveries against.
+	//
+	// It is read from the environment and never written to the config file. A webhook secret
+	// belongs to one endpoint rather than to a profile, and a developer typically holds
+	// several at once; storing one in a profile would make the wrong one the default.
+	EnvWebhookSecret = "MAILKUBE_WEBHOOK_SECRET"
 )
 
 // Source is where a resolved value came from.
