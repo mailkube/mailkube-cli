@@ -79,7 +79,8 @@ func (s *session) explainLocal() {
 		s.deps.Caps.Glyphs.Warn)
 	s.deps.Progress("     listener. Only what you post yourself will arrive:")
 	s.deps.Progress("")
-	s.deps.Progress("       mailkube webhooks simulate --url http://%s --event email.delivered", s.cfg.address)
+	s.deps.Progress("       mailkube webhooks simulate --url http://%s --event email.delivered",
+		dialable(s.cfg.address))
 }
 
 // forwardMode names the two ways a forward can be waited on, and only when it is the unusual one.

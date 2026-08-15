@@ -2,6 +2,7 @@ package webhooks_test
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -360,6 +361,54 @@ func TestLocalSaysNothingRealCanArrive(t *testing.T) {
 	if !strings.Contains(banner, "webhooks simulate") {
 		t.Errorf("the banner does not name the way to send something:\n%s", banner)
 	}
+}
+
+func TestTheSuggestedSimulateCommandIsOneThatRuns(t *testing.T) {
+	t.Parallel()
+
+	// A container binds a wildcard, because a published port cannot reach loopback there. But a
+	// wildcard answers "accept on which interfaces" and names no destination: simulate's own
+	// guard refuses one, and Windows will not connect to it at all. So the suggestion is taken
+	// out of the banner and run, rather than compared against an expected string. What is being
+	// asserted is not the wording but that the command works, which is the only thing a
+	// copy-pasteable line has to do.
+	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer endpoint.Close()
+
+	_, port, err := net.SplitHostPort(endpoint.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("the standing-in endpoint has no port: %v", err)
+	}
+
+	run := start(t, running(), "--local", "--host", "0.0.0.0", "--port", port)
+	run.stop(t)
+
+	suggested := suggestedTarget(t, run.errOut.String())
+	if code, _, errOut := invoke(t, running(), "simulate",
+		"--url", suggested, "--event", "email.sent"); code != errs.CodeOK {
+		t.Errorf("the banner suggests %s, which exits %d: %s", suggested, code, errOut)
+	}
+}
+
+// suggestedTarget reads the --url out of the command a banner tells the user to run.
+func suggestedTarget(t *testing.T, banner string) string {
+	t.Helper()
+
+	for _, line := range strings.Split(banner, "\n") {
+		if !strings.Contains(line, "webhooks simulate") {
+			continue
+		}
+		fields := strings.Fields(line)
+		for i, field := range fields {
+			if field == "--url" && i+1 < len(fields) {
+				return fields[i+1]
+			}
+		}
+	}
+	t.Fatalf("the banner suggests no simulate command:\n%s", banner)
+	return ""
 }
 
 // isWindows reports whether the permission model is the ACL one.

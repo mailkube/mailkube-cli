@@ -83,6 +83,24 @@ func loopback(host string) bool {
 	return false
 }
 
+// dialable turns a bind address into one that can be posted to.
+//
+// A wildcard is an answer to "which interfaces do I accept on", and not an answer to "where do I
+// send". Printing it back inside a suggested command produces a command that does not run: the
+// loopback guard on `simulate` and `--forward` refuses it, and Windows refuses to connect to it at
+// the socket. Loopback reaches a wildcard listener from the machine the command is typed on, which
+// is the machine the person reading the banner is at.
+func dialable(address string) string {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return address
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsUnspecified() {
+		return net.JoinHostPort(defaultHost, port)
+	}
+	return address
+}
+
 // bind opens the socket, real unless a test substituted one.
 //
 // tcp4 explicitly, and through a ListenConfig so the bind honours cancellation: a listener that
