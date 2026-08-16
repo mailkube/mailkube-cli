@@ -46,8 +46,11 @@ $Releases = "https://github.com/$Repo/releases"
 $CertIdentity = "^https://github\.com/$Repo/\.github/workflows/publish\.yml@refs/heads/main`$"
 $CertIssuer = 'https://token.actions.githubusercontent.com'
 
+# AllowEmptyString, because a blank line is a deliberate argument here rather than a missing one.
+# Mandatory alone rejects "" as though the caller had forgotten it, so the spacing between the
+# closing messages would abort the script after the binary was already installed.
 function Write-Step {
-    param([Parameter(Mandatory)] [string] $Message)
+    param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Message)
     Write-Information $Message
 }
 
@@ -183,7 +186,10 @@ try {
     # any. A new terminal picks it up; the current one does not.
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     if ($userPath -notlike "*$InstallDir*") {
-        [Environment]::SetEnvironmentVariable('Path', "$userPath;$InstallDir", 'User')
+        # A profile that has never had a user-scoped PATH returns nothing here, and joining onto
+        # that would write a leading separator, leaving an empty entry at the front of the PATH.
+        $newPath = if ([string]::IsNullOrEmpty($userPath)) { $InstallDir } else { "$userPath;$InstallDir" }
+        [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
         Write-Step ''
         Write-Step "Added $InstallDir to your PATH. Open a new terminal for it to take effect."
     }
