@@ -3,7 +3,7 @@ module github.com/mailkube/mailkube-cli
 go 1.25
 
 require (
-	github.com/BurntSushi/toml v1.4.0
+	github.com/BurntSushi/toml v1.6.0
 	github.com/itchyny/gojq v0.12.17
 	github.com/mailkube/mailkube-go v1.1.0
 	github.com/spf13/cobra v1.10.2
