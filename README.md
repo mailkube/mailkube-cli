@@ -7,9 +7,6 @@
 Send mail, manage scheduled sends, and receive webhooks from your terminal.
 Built for humans, scripts, CI and coding agents.
 
-> **Early development.** `v1.0.0` has shipped, but the command surface is still being built out
-> and is not yet stable — expect breaking changes ahead of a `v2`.
-
 ## What it does, and what it does not
 
 It covers the send path and the local development loop: sending over the API or SMTP, managing

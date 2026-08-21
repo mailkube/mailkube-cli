@@ -170,6 +170,24 @@ homebrew_casks:
       bash: completions/mailkube.bash
       zsh: completions/mailkube.zsh
       fish: completions/mailkube.fish
+    # macOS is Apple Silicon only: there is no darwin/amd64 build (see .rules/DISTRIBUTION.md), so
+    # the generated on_macos block below carries only on_arm, with no url at all for on_intel.
+    # Left alone, brew resolves that as "attempted to use a Downloadable without a URL!", which
+    # names no cause. This stanza is additive, not a replacement: Homebrew evaluates every
+    # on_macos block in the file, so it runs alongside the generated one and stops an on_intel
+    # resolution before brew goes looking for a url that was never going to exist.
+    #
+    # on_intel fires for real Intel hardware, but also for Apple Silicon under a Rosetta-run
+    # Homebrew (commonly the /usr/local prefix installed before switching, left in place beside
+    # /opt/homebrew): Hardware::CPU.type reflects the running process, not the physical chip. The
+    # message covers both, since a user hitting this has no way to tell which one they are from
+    # the error alone.
+    custom_block: |
+      on_macos do
+        on_intel do
+          odie "No Intel build of mailkube exists. If this is Apple Silicon hardware, you are likely running an x86_64 Homebrew (often /usr/local, installed under Rosetta) instead of the native one at /opt/homebrew - check `brew --prefix` and reinstall via the native prefix. Otherwise, on a genuine Intel Mac, install with: go install github.com/mailkube/mailkube-cli/cmd/mailkube@latest"
+        end
+      end
     hooks:
       post:
         # macOS marks anything a browser downloaded, and refuses to run it with an error that

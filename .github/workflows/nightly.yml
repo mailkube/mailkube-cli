@@ -48,8 +48,23 @@ jobs:
           check-latest: true
           cache: true
 
+      # go.dev/issue/75804: when -fuzztime expires, the coordinator races its own deadline
+      # against the cancellation of the worker context. Lose that race and it reports
+      # "context deadline exceeded" as a test failure instead of exiting clean. That is the
+      # harness timing out, not the target failing: no crasher is written and there is nothing
+      # to reproduce. Upstream fixed it in CL 774140, unreleased as of Go 1.26, so tolerate the
+      # one line it prints and let every other failure through. Delete this once CI runs a Go
+      # that carries the fix. None of the targets below take a context, so the string can only
+      # come from the coordinator.
       - name: Fuzz ${{ matrix.target }}
-        run: go test ${{ matrix.package }} -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 10m
+        run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/fuzz-${{ matrix.target }}.log"
+          if go test ${{ matrix.package }} -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 10m 2>&1 | tee "$log"; then
+            exit 0
+          fi
+          grep -qx '[[:space:]]*context deadline exceeded' "$log" || exit 1
+          echo "::notice::${{ matrix.target }} hit go.dev/issue/75804 at the fuzztime deadline; no crasher was found"
 
       # A crasher is written into testdata/fuzz as a committable file. Publishing it is the whole
       # point of the run: the fix is to commit that file as a seed and make it pass.
