@@ -18,7 +18,10 @@
     ],
     "click": {
       "timestamp": "2026-08-15T14:11:00Z",
-      "link": "https://acme.example/welcome"
+      "link": "https://acme.example/welcome",
+      "ipAddress": "203.0.113.42",
+      "country": "FR",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
     }
   }
 }

@@ -46,5 +46,7 @@ from `.rules/` based on the task.
   `go install` breaks. Never add a `replace` directive.
 - **No secrets in the repo** — local config lives in a git-ignored `.env`.
 - **Releases are git tags** — `pkg.go.dev` indexes `vX.Y.Z` automatically.
+- **Keep the `README` current** with user-visible changes; it and the command help are the only
+  reference this CLI publishes.
 - **Releases commit nothing to `main`** — the git tag is the version and the GitHub Release notes
   are the changelog; there is no `CHANGELOG.md` (see `.rules/RELEASE.md`).
