@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	mailkube "github.com/mailkube/mailkube-go"
 
 	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
+	"github.com/mailkube/mailkube-cli/internal/kernel/smtp"
 )
 
 func TestCodeForMapsEverySentinel(t *testing.T) {
@@ -173,5 +175,44 @@ func TestCodedErrorReportsTheWrappedMessage(t *testing.T) {
 	err := errs.Usagef("--at is not supported over %s", "smtp")
 	if got, want := err.Error(), "--at is not supported over smtp"; got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
+	}
+}
+
+func TestASubmissionFailureKeepsBothItsOwnAdviceAndTheCatalogueHint(t *testing.T) {
+	t.Parallel()
+
+	// Advice reaches a report from two directions: the failure knows what it is, and the
+	// describing code knows what the reader can do next. Keeping only whichever the error
+	// chain happened to present first drops the other for no reason a reader could guess at.
+	detail := errs.Describe(&smtp.Error{
+		Code: 535, Enhanced: "5.7.8", Stage: smtp.StageAuth,
+		Message: "Authentication credentials invalid",
+	})
+
+	if detail.Message != "Authentication credentials invalid" {
+		t.Errorf("message = %q, want the server's text unaltered", detail.Message)
+	}
+	if len(detail.Hints) != 1 || detail.Hints[0] != "Explain it: mailkube errors explain 535 5.7.8" {
+		t.Errorf("hints = %q, want the explain hint", detail.Hints)
+	}
+}
+
+func TestAFailureBelowTheReplyLevelIsDescribedRatherThanForwarded(t *testing.T) {
+	t.Parallel()
+
+	// The retry note is the half that matters most here. Categorised on the transport alone
+	// this is a network failure, which the generic note calls worth re-running — and a refusal
+	// to submit in the clear will refuse identically for as long as the server is configured
+	// the way it is.
+	detail := errs.Describe(&smtp.Error{
+		Stage:   smtp.StageTLS,
+		Message: "the server does not offer STARTTLS, and this client will not submit in the clear",
+	})
+
+	if detail.Name != "" {
+		t.Errorf("name = %q, want none: there was no reply to name it by", detail.Name)
+	}
+	if detail.RetryNote == "" || strings.Contains(detail.RetryNote, "try again") {
+		t.Errorf("retry note = %q, want one that does not invite a pointless re-run", detail.RetryNote)
 	}
 }

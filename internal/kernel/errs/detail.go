@@ -110,7 +110,10 @@ func Describe(err error) Detail {
 		// transport, and they are what `errors explain` is keyed on — so naming them here is
 		// what connects a failure a user just saw to the command that explains it.
 		d.Name = submission.Reply()
-		d.Message = submission.Message
+		// Summary, not Message: a reply-coded failure returns the server's own text unaltered,
+		// and a failure that never got a reply returns the sentence this CLI writes for it
+		// rather than the standard library's note to itself.
+		d.Message = submission.Summary()
 		if reply := submission.Reply(); reply != "" {
 			d.Hints = append(d.Hints, "Explain it: mailkube errors explain "+reply)
 		}
@@ -118,7 +121,14 @@ func Describe(err error) Detail {
 
 	var adviser Adviser
 	if errors.As(err, &adviser) {
-		d.Hints, d.RetryNote = adviser.Advice()
+		// Added to, not replaced. Advice arrives from two directions — the failure knows what
+		// it is, the command knows what it meant to do — and a report that keeps only whichever
+		// was found first drops the other for no reason the reader could guess at.
+		hints, note := adviser.Advice()
+		d.Hints = append(d.Hints, hints...)
+		if note != "" {
+			d.RetryNote = note
+		}
 	}
 
 	d.Retryable = retryable(d.Code)

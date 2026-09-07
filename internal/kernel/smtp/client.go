@@ -3,6 +3,7 @@ package smtp
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/smtp"
@@ -95,6 +96,28 @@ type Session struct {
 // net/smtp does not do itself: it takes a net.Conn, so the deadline has to be set on the
 // connection before handing it over.
 func Connect(ctx context.Context, config Config) (*Session, error) {
+	session, err := connect(ctx, config)
+	if err != nil {
+		// Stamped here, in one place, rather than at each classify call. Every failure that
+		// can be reported without a reply code is raised while establishing the session, so
+		// they all leave through this return — and a report that cannot name what it was
+		// talking to is one the reader has to reconstruct from the command they typed.
+		return nil, config.locate(err)
+	}
+	return session, nil
+}
+
+// locate attaches what the conversation was with to a failure that does not already name one.
+func (c Config) locate(err error) error {
+	var failure *Error
+	if errors.As(err, &failure) && failure.address == "" {
+		failure.address, failure.host, failure.mode = c.Address(), c.Host, c.TLS
+	}
+	return err
+}
+
+// connect is Connect without the reporting detail, so the stamp above has one place to happen.
+func connect(ctx context.Context, config Config) (*Session, error) {
 	conn, err := dial(ctx, config)
 	if err != nil {
 		return nil, err

@@ -65,6 +65,20 @@ type Error struct {
 	Message string
 	// category is the sentinel this failure reports itself as.
 	category error
+	// cause is the local error underneath a failure that never got a reply, kept whole.
+	//
+	// Message is that error's text, which is enough to print and not enough to reason about:
+	// "EOF" and "tls: failed to verify certificate: …" are the same string to a report and
+	// entirely different situations to a reader. The value is kept so the diagnosis can match
+	// on what the failure *is* rather than on how the standard library spelled it.
+	cause error
+	// address and host are what the conversation was with, stamped on by Config.locate.
+	//
+	// Only the failures raised while establishing a session carry them, which are exactly the
+	// ones with no reply code to name themselves by.
+	address, host string
+	// mode is how the connection was to be encrypted, so a suggested probe matches the port.
+	mode TLSMode
 }
 
 // Error implements error.
@@ -110,7 +124,9 @@ func classify(stage Stage, err error) error {
 
 	var reply *textproto.Error
 	if !errors.As(err, &reply) {
-		return &Error{Stage: stage, Message: err.Error(), category: categoryForStage(stage)}
+		return &Error{
+			Stage: stage, Message: err.Error(), cause: err, category: categoryForStage(stage),
+		}
 	}
 
 	enhanced, text := splitEnhanced(reply.Msg)
