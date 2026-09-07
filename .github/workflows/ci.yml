@@ -166,6 +166,13 @@ jobs:
       - name: Lint PowerShell (PSScriptAnalyzer)
         shell: pwsh
         run: |
+          # PowerShellGet keeps its PSGallery registration in the runner's user profile, and that
+          # registration is intermittently missing: the step then dies on "No repository with the
+          # name 'PSGallery' was found", which is a fact about the image and not about install.ps1.
+          # Re-register the default first so a red gate here always means a finding in the script.
+          if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+            Register-PSRepository -Default
+          }
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
           $findings = Invoke-ScriptAnalyzer -Path ./install.ps1 -Severity Error,Warning
