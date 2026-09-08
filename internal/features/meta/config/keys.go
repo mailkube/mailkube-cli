@@ -12,7 +12,7 @@ import (
 )
 
 // tlsModes are the accepted values for the smtp_tls key.
-func tlsModes() []string { return []string{"starttls", "implicit"} }
+func tlsModes() []string { return []string{"starttls"} }
 
 // key is one settable field of a profile.
 //

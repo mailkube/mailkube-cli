@@ -13,7 +13,6 @@ import (
 // reportInput is what the view needs beyond the server's own capabilities.
 type reportInput struct {
 	address   string
-	mode      mksmtp.TLSMode
 	elapsed   time.Duration
 	attempted bool
 	username  string
@@ -50,11 +49,7 @@ func report(caps mksmtp.Capabilities, in reportInput) ReportView {
 	view.Checks = append(view.Checks, CheckView{"EHLO", strings.Join(tokens(caps), " ")})
 
 	if caps.TLSVersion != "" {
-		label := "STARTTLS"
-		if in.mode == mksmtp.Implicit {
-			label = "TLS"
-		}
-		view.Checks = append(view.Checks, CheckView{label, caps.TLSVersion + ", " + caps.CipherSuite})
+		view.Checks = append(view.Checks, CheckView{"STARTTLS", caps.TLSVersion + ", " + caps.CipherSuite})
 	}
 	if caps.CertificateSubject != "" {
 		view.Checks = append(view.Checks, CheckView{"Certificate", certificate(caps, in.now)})

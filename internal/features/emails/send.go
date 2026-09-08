@@ -138,7 +138,7 @@ func (o *sendOptions) register(cmd *cobra.Command) {
 	fs.StringVar(&o.smtpUser, "smtp-user", "", "SMTP username, as localpart@verified-domain")
 	fs.StringVar(&o.smtpHost, "smtp-host", "", "submission host")
 	fs.StringVar(&o.smtpPort, "smtp-port", "", "submission port")
-	fs.StringVar(&o.smtpTLS, "smtp-tls", "", "encryption: starttls or implicit")
+	fs.StringVar(&o.smtpTLS, "smtp-tls", "", "encryption: starttls, the only mode")
 	fs.BoolVar(&o.skeleton, "generate-skeleton", false, skeletonNotes())
 	fs.BoolVar(&o.sample, "sample", false, "generate a body with links and images")
 	fs.StringArrayVar(&o.sampleLinks, "link", nil, "link to include in the generated body (repeatable)")

@@ -218,21 +218,11 @@ func TestAnUnrecognisedCauseStillSaysWhereItHappened(t *testing.T) {
 	}
 }
 
-func TestTheSuggestedProbeMatchesThePortItIsAbout(t *testing.T) {
+func TestTheSuggestedProbeIsSpelledForSTARTTLS(t *testing.T) {
 	t.Parallel()
 
-	// A command that does not run is worse than no command, and the two forms differ.
-	implicit := &Error{
-		Stage: StageTLS, Message: "x", cause: x509.UnknownAuthorityError{},
-		address: "smtp.example.com:465", host: "smtp.example.com", mode: Implicit,
-		category: ErrTLS,
-	}
-	hints, _ := implicit.Advice()
-	if !strings.Contains(hints[0], "openssl s_client -connect smtp.example.com:465") ||
-		strings.Contains(hints[0], "-starttls") {
-		t.Errorf("implicit probe = %q, want no -starttls", hints[0])
-	}
-
+	// A command that does not run is worse than no command; the probe must carry the
+	// -starttls flag the submission port expects.
 	starttls := located(StageTLS, x509.UnknownAuthorityError{})
 	if hints, _ := starttls.Advice(); !strings.HasSuffix(hints[0], "-starttls smtp") {
 		t.Errorf("starttls probe = %q, want -starttls smtp", hints[0])
@@ -246,7 +236,7 @@ func TestTheAddressIsStampedOnceAndNotOverwritten(t *testing.T) {
 	// through it, and a second pass must not relabel it.
 	err := classify(StageDial, io.EOF)
 	first := Config{Host: "first.example.com", Port: 587, TLS: STARTTLS}
-	second := Config{Host: "second.example.com", Port: 465, TLS: Implicit}
+	second := Config{Host: "second.example.com", Port: 2587, TLS: STARTTLS}
 
 	_ = second.locate(first.locate(err))
 
@@ -256,9 +246,6 @@ func TestTheAddressIsStampedOnceAndNotOverwritten(t *testing.T) {
 	}
 	if failure.address != "first.example.com:587" {
 		t.Errorf("address = %q, want the first one stamped", failure.address)
-	}
-	if failure.mode != STARTTLS {
-		t.Errorf("mode = %q, want the first one stamped", failure.mode)
 	}
 }
 

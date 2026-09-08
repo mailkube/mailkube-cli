@@ -32,11 +32,14 @@ API error names:
 
 SMTP reply codes:
   421        The service is not available and the connection is closing.
-  450        The mailbox was unavailable, temporarily.
+  450        The message was deferred. From mailkube it is the send-rate limit (`4.7.1 Rate limit exceeded, please retry later`); from other servers, a temporarily unavailable mailbox.
+  451 4.3.0  A temporary platform condition. The message was not accepted and was not lost; the same submission works once the condition clears.
   452        The server has insufficient storage to accept the message now.
   454 4.7.0  Authentication was refused temporarily, usually because it is being throttled.
   535 5.7.8  The username or password was rejected.
   550        The mailbox was unavailable, permanently.
+  550 5.6.0  The message itself was refused: a missing Subject, a topic slug over 16 characters, a tag breaking the tag rules, a template problem, or a body that failed the content scan. The reply text names the problem.
+  550 5.7.1  The send was not authorized: an unknown or disabled topic, a link that failed a reputation check, or an account-state change since the session signed in. The reply text says which.
   552        The message exceeded a size limit.
   554        The transaction failed, and the server will not accept this message.
 

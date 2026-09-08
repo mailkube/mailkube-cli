@@ -31,17 +31,13 @@ func ParsePort(value string) (int, error) {
 
 // ParseTLSMode reads an encryption mode from its configured text form.
 //
-// There are two modes and no third: an unencrypted option would exist only to be found by someone
+// There is one mode and no second: an unencrypted option would exist only to be found by someone
 // debugging a handshake, and left on afterwards.
 func ParseTLSMode(value string) (TLSMode, error) {
-	switch TLSMode(strings.ToLower(strings.TrimSpace(value))) {
-	case STARTTLS:
+	if TLSMode(strings.ToLower(strings.TrimSpace(value))) == STARTTLS {
 		return STARTTLS, nil
-	case Implicit:
-		return Implicit, nil
-	default:
-		return "", errors.New(quote(value) + " is not a usable TLS mode: use starttls or implicit")
 	}
+	return "", errors.New(quote(value) + " is not a usable TLS mode: use starttls")
 }
 
 // quote renders a value the way the message reads best, without pulling in a formatter for it.

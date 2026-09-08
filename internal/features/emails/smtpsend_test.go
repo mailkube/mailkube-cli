@@ -302,8 +302,8 @@ func TestAnUnusableTLSModeIsAConfigurationError(t *testing.T) {
 	if got.code != errs.CodeConfig {
 		t.Errorf("exit code = %d, want %d", got.code, errs.CodeConfig)
 	}
-	if !strings.Contains(got.errOut, "starttls or implicit") {
-		t.Errorf("the refusal does not name the usable modes:\n%s", got.errOut)
+	if !strings.Contains(got.errOut, "use starttls") {
+		t.Errorf("the refusal does not name the usable mode:\n%s", got.errOut)
 	}
 }
 
