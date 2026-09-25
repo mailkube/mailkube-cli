@@ -244,8 +244,19 @@ func smtpCatalogue() []Entry {
 		},
 		{
 			Name: "450", Status: 450, SMTP: true, Retryable: true,
-			Summary: "The mailbox was unavailable, temporarily.",
-			Actions: []Action{fix("Re-run later; the address itself is not necessarily wrong.")},
+			Summary: "The message was deferred. From mailkube it is the send-rate limit " +
+				"(`4.7.1 Rate limit exceeded, please retry later`); from other servers, " +
+				"a temporarily unavailable mailbox.",
+			Actions: []Action{
+				check("The sending pace against your plan's per-second rate."),
+				fix("Re-run later; the address itself is not necessarily wrong."),
+			},
+		},
+		{
+			Name: "451", Status: 451, Enhanced: "4.3.0", SMTP: true, Retryable: true,
+			Summary: "A temporary platform condition. The message was not accepted and was " +
+				"not lost; the same submission works once the condition clears.",
+			Actions: []Action{fix("Re-run later. A mail server retries this on its own schedule.")},
 		},
 		{
 			Name: "452", Status: 452, SMTP: true, Retryable: true,
@@ -275,6 +286,26 @@ func smtpCatalogue() []Entry {
 			Actions: []Action{
 				check("The address exists and is spelled correctly."),
 				check("The recipient has not been suppressed after an earlier bounce."),
+			},
+		},
+		{
+			Name: "550", Status: 550, Enhanced: "5.6.0", SMTP: true,
+			Summary: "The message itself was refused: a missing Subject, a topic slug over " +
+				"16 characters, a tag breaking the tag rules, a template problem, or a body " +
+				"that failed the content scan. The reply text names the problem.",
+			Actions: []Action{
+				check("The reply text; it says exactly what to fix."),
+				fix("Correct the named part of the message and re-run."),
+			},
+		},
+		{
+			Name: "550", Status: 550, Enhanced: "5.7.1", SMTP: true,
+			Summary: "The send was not authorized: an unknown or disabled topic, a link " +
+				"that failed a reputation check, or an account-state change since the " +
+				"session signed in. The reply text says which.",
+			Actions: []Action{
+				check("The topic slug against the dashboard's topics page."),
+				fix(dashboardURL("/domain")),
 			},
 		},
 		{

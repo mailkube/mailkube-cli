@@ -14,18 +14,16 @@ func TestTheTLSFloorAndHostnameAreNotNegotiable(t *testing.T) {
 	// because a server offering only TLS 1.0 would simply fail, and that failure is
 	// indistinguishable from any other. The interesting property is that no code path here can
 	// produce a configuration without these two values.
-	for _, mode := range []TLSMode{STARTTLS, Implicit} {
-		config := Config{Host: "smtp.example.com", Port: 587, TLS: mode}.tls()
+	config := Config{Host: "smtp.example.com", Port: 587, TLS: STARTTLS}.tls()
 
-		if config.MinVersion != tls.VersionTLS12 {
-			t.Errorf("%s: minimum version = 0x%04x, want TLS 1.2", mode, config.MinVersion)
-		}
-		if config.ServerName != "smtp.example.com" {
-			t.Errorf("%s: server name = %q, want the host being connected to", mode, config.ServerName)
-		}
-		if config.InsecureSkipVerify {
-			t.Errorf("%s: verification is disabled", mode)
-		}
+	if config.MinVersion != tls.VersionTLS12 {
+		t.Errorf("minimum version = 0x%04x, want TLS 1.2", config.MinVersion)
+	}
+	if config.ServerName != "smtp.example.com" {
+		t.Errorf("server name = %q, want the host being connected to", config.ServerName)
+	}
+	if config.InsecureSkipVerify {
+		t.Error("verification is disabled")
 	}
 }
 

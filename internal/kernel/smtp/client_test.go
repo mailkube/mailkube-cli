@@ -254,25 +254,6 @@ func TestAConnectionWithNoCredentialAuthenticatesNothing(t *testing.T) {
 	}
 }
 
-func TestImplicitTLSConnectsInsideTLSFromTheFirstByte(t *testing.T) {
-	t.Parallel()
-
-	server := &fakeServer{capabilities: []string{"AUTH PLAIN", "PIPELINING"}}
-	server, host, port, trust := newFakeServer(t, server)
-
-	// The fake server speaks TLS only after STARTTLS, so this asserts the client's own
-	// behaviour: dialling implicitly must not send a plaintext greeting first.
-	_, err := mksmtp.Connect(context.Background(), mksmtp.Config{
-		Host: host, Port: port, TLS: mksmtp.Implicit, Timeout: 2 * time.Second,
-	}.WithTLSConfig(trust))
-	if err == nil {
-		t.Fatal("an implicit-TLS dial succeeded against a plaintext listener")
-	}
-	if server.authenticated() {
-		t.Error("a credential was sent before the channel was established")
-	}
-}
-
 func TestACancelledContextStopsTheDial(t *testing.T) {
 	t.Parallel()
 

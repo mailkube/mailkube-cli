@@ -15,14 +15,14 @@ import (
 // TLSMode is how the connection is encrypted.
 type TLSMode string
 
-// The two modes, both of which encrypt. There is deliberately no third.
+// The one mode, which encrypts. There is deliberately no other: mailkube submits with
+// STARTTLS on port 587, and an unencrypted option would exist only to be found by someone
+// debugging a handshake, and left on afterwards.
 const (
 	// STARTTLS connects in the clear and upgrades. The upgrade is required, never optional:
 	// a client that silently continues unencrypted when the server does not offer it is a
 	// client that will one day submit a credential in the clear.
 	STARTTLS TLSMode = "starttls"
-	// Implicit connects inside TLS from the first byte, as port 465 expects.
-	Implicit TLSMode = "implicit"
 )
 
 // Config is what the client needs to reach a submission server.
@@ -111,7 +111,7 @@ func Connect(ctx context.Context, config Config) (*Session, error) {
 func (c Config) locate(err error) error {
 	var failure *Error
 	if errors.As(err, &failure) && failure.address == "" {
-		failure.address, failure.host, failure.mode = c.Address(), c.Host, c.TLS
+		failure.address, failure.host = c.Address(), c.Host
 	}
 	return err
 }
@@ -146,18 +146,9 @@ func connect(ctx context.Context, config Config) (*Session, error) {
 	return session, nil
 }
 
-// dial opens the transport, inside TLS or not depending on the mode.
+// dial opens the plain transport; encryption arrives with the STARTTLS upgrade.
 func dial(ctx context.Context, config Config) (net.Conn, error) {
 	dialer := &net.Dialer{Timeout: config.Timeout}
-
-	if config.TLS == Implicit {
-		tlsDialer := &tls.Dialer{NetDialer: dialer, Config: config.tls()}
-		conn, err := tlsDialer.DialContext(ctx, "tcp", config.Address())
-		if err != nil {
-			return nil, classify(StageTLS, err)
-		}
-		return conn, nil
-	}
 
 	conn, err := dialer.DialContext(ctx, "tcp", config.Address())
 	if err != nil {
@@ -166,7 +157,7 @@ func dial(ctx context.Context, config Config) (net.Conn, error) {
 	return conn, nil
 }
 
-// tls returns the TLS configuration, which verifies the hostname in every mode.
+// tls returns the TLS configuration, which always verifies the hostname.
 func (c Config) tls() *tls.Config {
 	if c.tlsConfig != nil {
 		return c.tlsConfig

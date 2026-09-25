@@ -145,14 +145,14 @@ func TestSMTPOverridesBeatTheStoredProfile(t *testing.T) {
 
 	got := settings.Resolve(settings.Globals{}, settings.Overrides{
 		SMTPUser: "other@acme.com",
-		SMTPPort: "465",
+		SMTPPort: "2587",
 	}, stored(), output.MapEnv(nil))
 
 	if got.SMTPUser.Value != "other@acme.com" || got.SMTPUser.Label() != "flag --smtp-user" {
 		t.Errorf("smtp user = %q from %q", got.SMTPUser.Value, got.SMTPUser.Label())
 	}
-	if got.SMTPPort.Value != "465" {
-		t.Errorf("smtp port = %q, want 465", got.SMTPPort.Value)
+	if got.SMTPPort.Value != "2587" {
+		t.Errorf("smtp port = %q, want 2587", got.SMTPPort.Value)
 	}
 	// The host was not overridden, so it still comes from the file: an override for one field
 	// must not blank the others.

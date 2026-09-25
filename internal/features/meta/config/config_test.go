@@ -262,13 +262,17 @@ func TestEverySettableKeyReadsBackAndClears(t *testing.T) {
 		// because a built-in value takes over. Clearing them removes the override, not the
 		// setting, and expecting an empty read for those would be expecting a broken CLI.
 		hasDefault bool
+		// valueIsDefault marks the keys whose only accepted value is also the built-in
+		// default, so a cleared read legitimately shows the set value again. The walk still
+		// proves set, get, and unset all know the key.
+		valueIsDefault bool
 	}{
 		{key: "api_key", value: "mk_j3k1a2b3c4d5f8a2"},
 		{key: "base_url", value: "https://api.example.test/mta/v1/", hasDefault: true},
 		{key: "smtp_user", value: "app01@acme.com"},
 		{key: "smtp_host", value: "smtp.example.test"},
 		{key: "smtp_port", value: "2525", hasDefault: true},
-		{key: "smtp_tls", value: "implicit", hasDefault: true},
+		{key: "smtp_tls", value: "starttls", hasDefault: true, valueIsDefault: true},
 	}
 
 	for _, tc := range tests {
@@ -301,6 +305,10 @@ func TestEverySettableKeyReadsBackAndClears(t *testing.T) {
 			}
 			cleared := strings.TrimSpace(out.String())
 			switch {
+			case tc.valueIsDefault:
+				if cleared != tc.value {
+					t.Errorf("%s did not fall back to its default after unset: %q", tc.key, cleared)
+				}
 			case tc.hasDefault && cleared == tc.value:
 				t.Errorf("%s survived unset: %q", tc.key, cleared)
 			case !tc.hasDefault && cleared != "-":

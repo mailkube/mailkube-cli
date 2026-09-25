@@ -118,7 +118,7 @@ func diagnoseDial(address string, cause error) diagnosis {
 			summary: fmt.Sprintf("Nothing accepted a connection on %s.", address),
 			actions: []string{
 				"Check: the submission service is running and listening on that port.",
-				"Check: the port is a submission port — 587 for STARTTLS, 465 for implicit TLS.",
+				"Check: the port is the submission port, 587.",
 			},
 			retryNote: noteFixFirst,
 		}
@@ -152,7 +152,7 @@ func diagnoseGreeting(address string, cause error) diagnosis {
 			summary: fmt.Sprintf(
 				"%s accepted the connection, then closed it before sending a greeting.", address),
 			actions: []string{
-				"Check: the port is a submission port — 587 for STARTTLS, 465 for implicit TLS.",
+				"Check: the port is the submission port, 587.",
 				"Fix: if the address is right, whatever answers on it is not serving submission; " +
 					"report the address and the time this happened.",
 			},
@@ -187,7 +187,7 @@ func (e *Error) diagnoseTLS() diagnosis {
 		return diagnosis{
 			summary: fmt.Sprintf("The certificate %s presented is not valid for that name.", e.host),
 			actions: []string{
-				"Check: " + probeCommand(e.address, e.mode),
+				"Check: " + probeCommand(e.address),
 				"Fix: connect by a name the certificate covers, or reissue it to cover this one.",
 			},
 			retryNote: noteFixFirst,
@@ -200,7 +200,7 @@ func (e *Error) diagnoseTLS() diagnosis {
 			summary: fmt.Sprintf(
 				"The certificate %s presented was not issued by an authority this machine trusts.", e.host),
 			actions: []string{
-				"Check: " + probeCommand(e.address, e.mode),
+				"Check: " + probeCommand(e.address),
 				"Fix: install the issuing authority in this machine's trust store, or serve a " +
 					"publicly issued certificate.",
 			},
@@ -225,7 +225,7 @@ func (e *Error) expiredDiagnosis() diagnosis {
 	return diagnosis{
 		summary: summary,
 		actions: []string{
-			"Check: " + probeCommand(e.address, e.mode),
+			"Check: " + probeCommand(e.address),
 			"Fix: renew the certificate on that server, or report the address if it is not yours.",
 		},
 		retryNote: noteFixFirst,
@@ -239,8 +239,8 @@ func (e *Error) handshakeDiagnosis() diagnosis {
 		return diagnosis{
 			summary: fmt.Sprintf("%s did not answer with a TLS handshake.", e.address),
 			actions: []string{
-				"Check: the encryption matches the port — 587 expects starttls, 465 expects implicit.",
-				"Fix: pass the other one with --tls.",
+				"Check: the address points at the submission service, which offers STARTTLS on 587.",
+				"Fix: verify the host and port, then rerun.",
 			},
 			retryNote: noteFixFirst,
 		}
@@ -261,13 +261,8 @@ func expiryOf(cause error) (time.Time, bool) {
 	return verification.UnverifiedCertificates[0].NotAfter, true
 }
 
-// probeCommand is the one-liner that shows the certificate a failure is about.
-//
-// It is spelled for the mode that was asked for, because the two forms differ and a suggestion
-// that does not run is worse than none.
-func probeCommand(address string, mode TLSMode) string {
-	if mode == Implicit {
-		return "openssl s_client -connect " + address
-	}
+// probeCommand is the one-liner that shows the certificate a failure is about, spelled for
+// STARTTLS, the one mode there is.
+func probeCommand(address string) string {
 	return "openssl s_client -connect " + address + " -starttls smtp"
 }

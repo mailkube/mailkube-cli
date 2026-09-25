@@ -160,15 +160,10 @@ func smtpPort(value string) (int, error) {
 
 // smtpTLS parses the resolved encryption mode.
 func smtpTLS(value string) (mksmtp.TLSMode, error) {
-	switch mksmtp.TLSMode(strings.ToLower(strings.TrimSpace(value))) {
-	case mksmtp.STARTTLS:
+	if mksmtp.TLSMode(strings.ToLower(strings.TrimSpace(value))) == mksmtp.STARTTLS {
 		return mksmtp.STARTTLS, nil
-	case mksmtp.Implicit:
-		return mksmtp.Implicit, nil
-	default:
-		return "", errs.Configf(
-			"%q is not a usable TLS mode: use starttls or implicit", value)
 	}
+	return "", errs.Configf("%q is not a usable TLS mode: use starttls", value)
 }
 
 // SubmittedView is what a submission reports back.

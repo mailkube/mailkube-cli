@@ -77,8 +77,6 @@ type Error struct {
 	// Only the failures raised while establishing a session carry them, which are exactly the
 	// ones with no reply code to name themselves by.
 	address, host string
-	// mode is how the connection was to be encrypted, so a suggested probe matches the port.
-	mode TLSMode
 }
 
 // Error implements error.

@@ -85,7 +85,7 @@ func (f *Feature) testCmd(deps *feature.Deps) *cobra.Command {
 	fs := cmd.Flags()
 	fs.StringVar(&o.host, "host", "", "submission host")
 	fs.StringVar(&o.port, "port", "", "submission port")
-	fs.StringVar(&o.tls, "tls", "", "encryption: starttls or implicit")
+	fs.StringVar(&o.tls, "tls", "", "encryption: starttls, the only mode")
 	fs.StringVar(&o.user, "user", "", "SMTP username, as localpart@verified-domain")
 	fs.BoolVar(&o.auth, "auth", false, "also sign in, testing the credential")
 	return cmd
@@ -111,7 +111,6 @@ func (f *Feature) run(ctx context.Context, deps *feature.Deps, o *options) error
 
 	return deps.Emit(report(session.Capabilities(), reportInput{
 		address:   config.Address(),
-		mode:      config.TLS,
 		elapsed:   deps.Clock.Now().Sub(started),
 		attempted: config.Username != "",
 		username:  config.Username,

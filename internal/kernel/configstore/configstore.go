@@ -63,14 +63,14 @@ type SMTP struct {
 	Password string `toml:"password,omitempty"`
 	// Host is the submission host.
 	Host string `toml:"host,omitempty"`
-	// Port is the submission port, conventionally 587 for STARTTLS or 465 for implicit TLS.
+	// Port is the submission port, conventionally 587 for STARTTLS.
 	//
 	// A pointer, so that "not configured" and "zero" are distinguishable in the file. The TOML
 	// encoder's omitempty covers strings, maps and slices but not numbers, so a plain int would
 	// write `port = 0` into a config a user is expected to read and edit by hand — a value that
 	// is not a port, presented as though someone had chosen it.
 	Port *int `toml:"port,omitempty"`
-	// TLS is "starttls" or "implicit".
+	// TLS is "starttls".
 	TLS string `toml:"tls,omitempty"`
 }
 
