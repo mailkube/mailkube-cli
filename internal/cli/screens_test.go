@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
@@ -20,7 +19,7 @@ func TestScreens(t *testing.T) {
 	// Paths appear in several of these screens, so every case runs against the same fixed
 	// config path. Without that a golden would record a different temporary directory on every
 	// run, which is the classic way a golden test becomes a test of the test harness.
-	const fixedPath = "/tmp/mailkube-golden/config.toml"
+	const fixedPath = testsupport.GoldenConfigPath
 
 	tests := []struct {
 		name string
@@ -153,21 +152,18 @@ func TestScreens(t *testing.T) {
 			if got.code != tc.wantCode {
 				t.Errorf("exit code = %d, want %d\n%s", got.code, tc.wantCode, got.errOut)
 			}
-			assertGolden(t, tc.name, withStablePaths(got, opts.ConfigPath, fixedPath), tc.verdict)
+			assertGolden(t, tc.name, withStablePaths(got, opts.ConfigPath), tc.verdict)
 		})
 	}
 }
 
-// withStablePaths rewrites the temporary config path to a fixed one.
+// withStablePaths rewrites the temporary config path in both streams to the golden one.
 //
 // The signed-in cases need a real file, which means a real temporary directory, which differs on
 // every run and on every machine. Templating it here rather than avoiding paths in the output
 // keeps the screens honest: the path is genuinely part of what these commands print.
-func withStablePaths(got result, actual, stable string) result {
-	if actual == stable {
-		return got
-	}
-	got.out = strings.ReplaceAll(got.out, actual, stable)
-	got.errOut = strings.ReplaceAll(got.errOut, actual, stable)
+func withStablePaths(got result, actual string) result {
+	got.out = testsupport.StablePath(got.out, actual)
+	got.errOut = testsupport.StablePath(got.errOut, actual)
 	return got
 }

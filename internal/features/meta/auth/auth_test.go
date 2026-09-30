@@ -11,6 +11,7 @@ import (
 	"github.com/mailkube/mailkube-cli/internal/features/meta/auth"
 	"github.com/mailkube/mailkube-cli/internal/kernel/errs"
 	"github.com/mailkube/mailkube-cli/internal/kernel/feature"
+	"github.com/mailkube/mailkube-cli/internal/kernel/golden"
 	"github.com/mailkube/mailkube-cli/internal/kernel/output"
 	"github.com/mailkube/mailkube-cli/internal/kernel/ports"
 	"github.com/mailkube/mailkube-cli/internal/kernel/settings"
@@ -35,21 +36,36 @@ func featureWith(sender ports.EmailSender) *auth.Feature {
 	return f
 }
 
+// acceptedKey answers the probe the way the platform answers a valid key: by rejecting the from
+// domain. The message is the platform's own text, code included, so a screen rendered from it
+// shows what a user would see.
+func acceptedKey() *fakeSender {
+	return &fakeSender{err: &mailkube.APIError{
+		ErrorName:  mailkube.ErrorNameFromDomainNotAllowed,
+		Message:    "5.7.1 From address must match the key's domain acme.com",
+		StatusCode: 422,
+		RequestID:  "8f2c1ad4e93b4c7fa10d5e2b9c46f183",
+	}}
+}
+
+// assertScreen compares both streams of a run against its golden files, with the temporary config
+// path rewritten to the stable one every golden records.
+func assertScreen(t *testing.T, name string, deps *feature.Deps, out, errOut *bytes.Buffer) {
+	t.Helper()
+
+	path := deps.Store.Path()
+	golden.Assert(t, name+".out", []byte(testsupport.StablePath(out.String(), path)))
+	golden.Assert(t, name+".err", []byte(testsupport.StablePath(errOut.String(), path)))
+}
+
 // TestTheProbeReadsTheRejectionAsProofOfAuthentication is the point of the whole mechanism: the
 // only response that proves a key is valid is the one rejecting the from domain, because that
 // check runs after authentication and before anything is charged.
 func TestTheProbeReadsTheRejectionAsProofOfAuthentication(t *testing.T) {
 	t.Parallel()
 
-	sender := &fakeSender{err: &mailkube.APIError{
-		ErrorName:  mailkube.ErrorNameFromDomainNotAllowed,
-		Message:    "From address must match the key's domain acme.com",
-		StatusCode: 422,
-		RequestID:  "8f2c1ad4e93b4c7fa10d5e2b9c46f183",
-	}}
-
 	deps, _, _ := testsupport.TestDeps(t, testsupport.TestOptions{})
-	view, err := featureWith(sender).LoginAPI(context.Background(), deps, "mk_key", false)
+	view, err := featureWith(acceptedKey()).LoginAPI(context.Background(), deps, "mk_key", false)
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -57,8 +73,8 @@ func TestTheProbeReadsTheRejectionAsProofOfAuthentication(t *testing.T) {
 	if !view.Verification.Verified {
 		t.Error("a from_domain_not_allowed rejection was not read as a successful authentication")
 	}
-	// The server's own words are carried through untouched. They name the domain the key is
-	// bound to, and parsing that out of prose would break on the first wording change.
+	// The server's own words are carried through untouched for the machine-readable result. The
+	// text screen never prints them; the goldens pin both sides of that.
 	if !strings.Contains(view.Verification.Message, "acme.com") {
 		t.Errorf("the server's message was not carried through: %q", view.Verification.Message)
 	}
@@ -216,12 +232,7 @@ func TestTheGuidedSetupWalksBothCredentials(t *testing.T) {
 	})
 	deps.Format = output.Text
 
-	credentials := featureWith(&fakeSender{err: &mailkube.APIError{
-		ErrorName: mailkube.ErrorNameFromDomainNotAllowed,
-		Message:   "From address must match the key's domain acme.com",
-	}})
-
-	cmd := auth.NewInit(credentials).Command(deps)
+	cmd := auth.NewInit(featureWith(acceptedKey())).Command(deps)
 	cmd.SetArgs(testsupport.Args(nil))
 	cmd.SetOut(out)
 	cmd.SetErr(errOut)
@@ -242,6 +253,7 @@ func TestTheGuidedSetupWalksBothCredentials(t *testing.T) {
 	if !strings.Contains(out.String(), "You're set up") {
 		t.Errorf("the payload does not close the setup:\n%s", out.String())
 	}
+	assertScreen(t, "init", deps, out, errOut)
 
 	cfg, err := deps.Store.Load()
 	if err != nil {

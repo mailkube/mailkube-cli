@@ -28,11 +28,12 @@ const (
 type Verification struct {
 	// Verified reports whether the key authenticated.
 	Verified bool `json:"verified"`
-	// Message is the server's own explanation, rendered exactly as it arrived.
+	// Message is the server's answer to the probe, exactly as it arrived.
 	//
-	// It carries the domain the key is bound to, which is the second thing this probe answers.
-	// The CLI does not parse it: scraping prose for a value breaks on the first wording change,
-	// and the server's message is passed through unaltered everywhere else too.
+	// It belongs to the machine-readable result and is never printed as text. It is the rejection
+	// the probe provokes on purpose, so on a terminal it would read as a failure straight after the
+	// verdict that the key works. It names the domain the key is bound to, and the CLI does not
+	// parse that out: scraping prose for a value breaks on the first wording change.
 	Message string `json:"message,omitempty"`
 	// RequestID is the server's request id for the probe.
 	RequestID string `json:"requestId,omitempty"`

@@ -1,0 +1,8 @@
+
+  Welcome to Mailkube.
+
+Paste your Mailkube API key (input hidden): ✓ Credential format valid (mk_j3k…f8a2)
+✓ Verified — the credential authenticated
+✓ Saved to /tmp/mailkube-golden/config.toml  (mode 0600, profile "default")
+Add SMTP credentials too? (y/N) SMTP username: ✓ Credential format valid (app01@acme.com)
+✓ Saved to the "default" profile

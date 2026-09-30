@@ -1,0 +1,7 @@
+
+  You're set up. Try:
+
+    mailkube emails send --from you@your-domain --to you@example.com \
+      --subject "Hello from the CLI" --text "It works." --dry-run
+
+  Docs: https://docs.mailkube.com/cli
