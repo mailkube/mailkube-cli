@@ -31,12 +31,6 @@ func (v LoginView) RenderText(caps output.Caps) []string {
 	switch {
 	case v.Verification.Verified:
 		lines = append(lines, ok+" Verified — the credential authenticated")
-		if v.Verification.Message != "" {
-			// The server's own words, rendered as they arrived. This line carries the
-			// domain the key is bound to, and paraphrasing it would mean parsing prose
-			// for a value and re-deriving it every time the wording changed.
-			lines = append(lines, "  "+output.Sanitize(v.Verification.Message))
-		}
 	case v.Principal == "api":
 		lines = append(lines, caps.Glyphs.Warn+" Not verified — the credential was stored unchecked")
 	}

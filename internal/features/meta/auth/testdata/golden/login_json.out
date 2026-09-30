@@ -1,0 +1,12 @@
+{
+  "principal": "api",
+  "profile": "default",
+  "stored": true,
+  "path": "/tmp/mailkube-golden/config.toml",
+  "masked": "mk_j3k…f8a2",
+  "verification": {
+    "verified": true,
+    "message": "5.7.1 From address must match the key's domain acme.com",
+    "requestId": "8f2c1ad4e93b4c7fa10d5e2b9c46f183"
+  }
+}
