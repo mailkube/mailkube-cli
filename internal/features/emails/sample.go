@@ -8,6 +8,13 @@ import (
 // SampleSubject is the subject a generated message carries when none was given.
 const SampleSubject = "Mailkube sample message"
 
+// SampleSwapNote closes a generated body, below its links and images.
+//
+// It sits in the message rather than only in the help text because the received sample is where
+// a user first sees the placeholder URLs, and so where they wonder how to replace them.
+const SampleSwapNote = "To use your own links and images, run mailkube emails send --sample with --link and " +
+	"--image. Both flags can be repeated."
+
 // defaultSampleLink and defaultSampleImage are the URLs a generated body carries by default.
 //
 // Both are on a domain reserved by RFC 2606, so a sample message never points a recipient at
@@ -71,6 +78,7 @@ func sampleHTML(paragraphs, links, images []string) string {
 	for i, image := range images {
 		b.WriteString(`<p><img src="` + image + `" alt="Sample image ` + ordinal(i) + `"></p>` + "\n")
 	}
+	b.WriteString("<p>" + SampleSwapNote + "</p>\n")
 
 	b.WriteString("</body></html>")
 	return b.String()
@@ -86,6 +94,7 @@ func sampleText(paragraphs, links, images []string) string {
 	parts = append(parts, "")
 	parts = append(parts, links...)
 	parts = append(parts, images...)
+	parts = append(parts, "", SampleSwapNote)
 	return strings.Join(parts, "\n")
 }
 
@@ -128,5 +137,10 @@ func words() []string {
 		"message", "delivery", "sender", "recipient", "subject", "content", "header",
 		"template", "schedule", "webhook", "signature", "transport", "campaign", "topic",
 		"reputation", "throughput", "bounce", "complaint", "attachment", "encoding",
+		"inbox", "mailbox", "domain", "envelope", "relay", "queue", "retry", "deferral",
+		"suppression", "unsubscribe", "preheader", "footer", "payload", "event", "tracking",
+		"click", "open", "contact", "audience", "segment", "newsletter", "receipt",
+		"notification", "digest", "reply", "thread", "batch", "volume", "latency",
+		"authentication", "alignment", "verification", "warmup", "sendout",
 	}
 }
