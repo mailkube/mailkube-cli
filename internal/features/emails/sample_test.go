@@ -50,6 +50,27 @@ func TestAGeneratedMessageCarriesLinksAndImagesInBothParts(t *testing.T) {
 	}
 }
 
+func TestAGeneratedMessageEndsWithTheSwapNoteInBothParts(t *testing.T) {
+	t.Parallel()
+
+	// The note tells a reader of the received sample how to replace the placeholder URLs, so
+	// it has to follow them in each part rather than precede them.
+	sample := emails.GenerateSample(3, nil, nil)
+
+	for _, part := range []struct {
+		name, content string
+	}{{"html", sample.HTML}, {"text", sample.Text}} {
+		note := strings.Index(part.content, emails.SampleSwapNote)
+		if note < 0 {
+			t.Errorf("the %s part carries no swap note:\n%s", part.name, part.content)
+			continue
+		}
+		if note < strings.LastIndex(part.content, "sample-image.png") {
+			t.Errorf("the %s part puts the swap note above the images:\n%s", part.name, part.content)
+		}
+	}
+}
+
 func TestSuppliedLinksAndImagesReplaceTheDefaults(t *testing.T) {
 	t.Parallel()
 
