@@ -193,9 +193,15 @@ homebrew_casks:
         # macOS marks anything a browser downloaded, and refuses to run it with an error that
         # does not say so. Clearing the mark after install is what keeps `brew install` followed
         # by `mailkube` working in one step.
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/mailkube"]
+        #
+        # Homebrew's declarative steps DSL, rendered as `postflight_steps` (Homebrew 5.1.14 or later;
+        # `brew install` updates Homebrew first unless that is switched off). It takes no Ruby, so
+        # `on_macos` stands where the probe for /usr/bin/xattr used to. `run` fails the install on a
+        # non-zero exit by default, and must_succeed: false keeps the old rule that a mark it could
+        # not clear never costs the user the install.
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/mailkube"], must_succeed: false
           end
 
 scoops:
