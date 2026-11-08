@@ -4,8 +4,11 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/mailkube/mailkube-cli.svg)](https://pkg.go.dev/github.com/mailkube/mailkube-cli)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
+The official command-line interface for [mailkube](https://mailkube.com).
 Send mail, manage scheduled sends, and receive webhooks from your terminal.
 Built for humans, scripts, CI and coding agents.
+
+Full product and API documentation: [docs.mailkube.com/cli](https://docs.mailkube.com/cli).
 
 ## What it does, and what it does not
 

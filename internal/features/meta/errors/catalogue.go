@@ -243,6 +243,16 @@ func smtpCatalogue() []Entry {
 			Actions: []Action{fix("Re-run the command. Nothing here retries on its own.")},
 		},
 		{
+			Name: "421", Status: 421, Enhanced: "4.3.2", SMTP: true, Retryable: true,
+			Summary: "The server closed the connection: it sat idle for a minute, or the server is at capacity.",
+			Actions: []Action{fix("Reconnect and send again.")},
+		},
+		{
+			Name: "421", Status: 421, Enhanced: "4.5.3", SMTP: true, Retryable: true,
+			Summary: "This connection reached its limit of 5,000 recipients, and the server closed it.",
+			Actions: []Action{fix("Open a new connection and send again.")},
+		},
+		{
 			Name: "450", Status: 450, SMTP: true, Retryable: true,
 			Summary: "The message was deferred. From mailkube it is the send-rate limit " +
 				"(`4.7.1 Rate limit exceeded, please retry later`); from other servers, " +
@@ -259,9 +269,14 @@ func smtpCatalogue() []Entry {
 			Actions: []Action{fix("Re-run later. A mail server retries this on its own schedule.")},
 		},
 		{
-			Name: "452", Status: 452, SMTP: true, Retryable: true,
-			Summary: "The server has insufficient storage to accept the message now.",
-			Actions: []Action{fix("Re-run later, or send a smaller message.")},
+			Name: "451", Status: 451, Enhanced: "4.4.5", SMTP: true, Retryable: true,
+			Summary: "Processing after DATA took longer than 5 minutes, so the message was not accepted.",
+			Actions: []Action{fix("Send it again. For a large message, send to fewer recipients at a time.")},
+		},
+		{
+			Name: "452", Status: 452, Enhanced: "4.5.3", SMTP: true, Retryable: true,
+			Summary: "This connection reached its limit of 5,000 recipients.",
+			Actions: []Action{fix("Send the remaining recipients on a new connection.")},
 		},
 		{
 			Name: "454", Status: 454, Enhanced: "4.7.0", SMTP: true, Retryable: true,

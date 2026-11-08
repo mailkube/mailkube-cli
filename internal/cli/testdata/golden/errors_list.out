@@ -32,9 +32,12 @@ API error names:
 
 SMTP reply codes:
   421        The service is not available and the connection is closing.
+  421 4.3.2  The server closed the connection: it sat idle for a minute, or the server is at capacity.
+  421 4.5.3  This connection reached its limit of 5,000 recipients, and the server closed it.
   450        The message was deferred. From mailkube it is the send-rate limit (`4.7.1 Rate limit exceeded, please retry later`); from other servers, a temporarily unavailable mailbox.
   451 4.3.0  A temporary platform condition. The message was not accepted and was not lost; the same submission works once the condition clears.
-  452        The server has insufficient storage to accept the message now.
+  451 4.4.5  Processing after DATA took longer than 5 minutes, so the message was not accepted.
+  452 4.5.3  This connection reached its limit of 5,000 recipients.
   454 4.7.0  Authentication was refused temporarily, usually because it is being throttled.
   535 5.7.8  The username or password was rejected.
   550        The mailbox was unavailable, permanently.
